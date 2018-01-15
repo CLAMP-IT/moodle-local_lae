@@ -22,7 +22,7 @@ php:
 
 env:
  global:
-   - MOODLE_REPO=https://github.com/CLAMP-IT/moodle
+   - MOODLE_REPO=https://github.com/CLAMP-IT/moodle.git
  matrix:
    - DB=pgsql MOODLE_BRANCH=LAE_33_STABLE
    - DB=mysqli MOODLE_BRANCH=LAE_33_STABLE
