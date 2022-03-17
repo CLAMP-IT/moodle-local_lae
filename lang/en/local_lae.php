@@ -14,6 +14,14 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+/**
+ * This file explains this plugins status in relation to the GDPR.
+ *
+ * @package    local_lae
+ * @copyright  2018 CLAMP
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
 $string['auser_email'] = 'Somebody@example.com';
 $string['auser_firstname'] = 'Anonymous';
 $string['auser_lastname'] = 'User';

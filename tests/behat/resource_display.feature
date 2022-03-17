@@ -1,4 +1,4 @@
-@local_lae @course @course_settings
+@local @local_lae
 Feature: Set a resource display preference at the course level
   In order to set a resource display preference at the course level
   As a teacher

@@ -14,21 +14,42 @@
 // You should have received a copy of the GNU General Public License
 // along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
 
+/**
+ * Uninstallation tasks.
+ *
+ * @package    local_lae
+ * @copyright  2018 CLAMP
+ * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+ */
+
+/**
+ * Uninstalls the plugin.
+ *
+ * Uninstalls the plugin. This returns the mod_forum tables to their core state.
+ * It does not, by design, remove the anonymous user.
+ *
+ * @return boolean
+ */
 function xmldb_local_lae_uninstall() {
     global $DB;
     $dbman = $DB->get_manager();
 
-    // By design the anonymous user remains
-    // Restore normal forum schema
+    // By design the anonymous user remains.
+    // Restore normal forum schema.
     $table = new xmldb_table('forum');
     $field = new xmldb_field('anonymous');
-    if ($dbman->field_exists($table, $field)) $dbman->drop_field($table, $field);
-    // Restore normal forum post schema
+    if ($dbman->field_exists($table, $field)) {
+        $dbman->drop_field($table, $field);
+    }
+
+    // Restore normal forum post schema.
     $table = new xmldb_table('forum_posts');
     $field = new xmldb_field('hiddenuserid');
-    if ($dbman->field_exists($table, $field)) $dbman->drop_field($table, $field);
+    if ($dbman->field_exists($table, $field)) {
+        $dbman->drop_field($table, $field);
+    }
 
-    // Restore the normal course schema
+    // Restore the normal course schema.
     $table = new xmldb_table('course');
     $field = new xmldb_field('filedisplaydefault');
     if ($dbman->field_exists($table, $field)) {

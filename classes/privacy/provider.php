@@ -24,8 +24,6 @@
 
 namespace local_lae\privacy;
 
-defined('MOODLE_INTERNAL') || die;
-
 /**
  * A provider class to address GDPR
  *

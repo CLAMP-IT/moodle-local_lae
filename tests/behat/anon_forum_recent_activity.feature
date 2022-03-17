@@ -1,4 +1,4 @@
-@anon_forum @local_lae @anon_forum_recent_activity
+@local @local_lae
 Feature: Print Anonymous Forum Recent Activity
   In order to view recent activity from an anonymous forum
   As a teacher

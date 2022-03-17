@@ -1,0 +1,3021 @@
+diff --git a/.github/workflows/push.yml b/.github/workflows/push.yml
+index d106d43f37f..880adbd2e2b 100644
+--- a/.github/workflows/push.yml
++++ b/.github/workflows/push.yml
+@@ -3,6 +3,7 @@ name: Core
+ on:
+   push:
+     branches-ignore:
++      - '*PACKAGE*'
+       - master
+       - MOODLE_[0-9]+_STABLE
+     tags-ignore:
+diff --git a/.travis.yml b/.travis.yml
+index 42f71cc4a9f..95136b6a8d0 100644
+--- a/.travis.yml
++++ b/.travis.yml
+@@ -18,6 +18,10 @@ services:
+ 
+ addons:
+   postgresql: "9.6"
++  chrome: stable
++  apt:
++    packages:
++      - chromium-chromedriver
+ 
+ branches:
+   except:
+@@ -93,6 +97,13 @@ install:
+             sudo ln -s /mnt/ramdisk/postgresql /var/lib/postgresql
+             sudo service postgresql start 9.6
+         fi
++    - >
++        if [ "$TASK" = 'BEHAT' ];
++        then
++            # Set always_populate_raw_post_data to -1
++            echo 'always_populate_raw_post_data = -1' > /tmp/custom.ini
++            phpenv config-add /tmp/custom.ini
++        fi
+     - >
+         if [ "$TASK" = 'PHPUNIT' ];
+         then
+@@ -104,6 +115,10 @@ install:
+             echo 'extension="redis.so"' > /tmp/redis.ini
+             phpenv config-add /tmp/redis.ini
+ 
++            # Disable opcache
++            echo 'opcache.enable_cli = 0' > /tmp/opcache.ini
++            phpenv config-add /tmp/opcache.ini
++
+             # Install composer dependencies.
+             # We need --no-interaction in case we hit API limits for composer. This causes it to fall back to a standard clone.
+             # Typically it should be able to use the Composer cache if any other job has already completed before we started here.
+@@ -118,6 +133,9 @@ install:
+         fi
+ 
+ before_script:
++    # Disable IPv6
++    - sudo sh -c 'echo 0 > /proc/sys/net/ipv6/conf/all/disable_ipv6'
++
+     - phpenv config-rm xdebug.ini
+     - >
+       if [ "$TASK" = 'PHPUNIT' ];
+@@ -197,10 +215,36 @@ before_script:
+         php admin/tool/phpunit/cli/init.php
+       fi
+ 
++    - >
++      if [ "$TASK" = 'BEHAT' ];
++      then
++        # We need to use openjdk8
++        export JAVA_HOME='/usr/local/lib/jvm/openjdk8'
++        export PATH="$JAVA_HOME/bin:$PATH"
++
++        # Create a directory for the behat database
++        mkdir -p "$HOME"/roots/behat
++
++        # The behat dataroot, prefix and wwwroot
++        sed -i \
++          -e "/require_once/i \\\$CFG->behat_dataroot = '\/home\/travis\/roots\/behat';" \
++          -e "/require_once/i \\\$CFG->behat_prefix = 'b_';" \
++          -e "/require_once/i \\\$CFG->behat_wwwroot = 'http://localhost:8000';" \
++          -e "/require_once/i \\\$CFG->behat_profiles=['default'=>['browser'=>'chrome','wd_host'=>'http://localhost:4444/wd/hub']];" \
++          config.php ;
++
++        # Get and launch selenium
++        wget http://selenium-release.storage.googleapis.com/3.9/selenium-server-standalone-3.9.1.jar;
++        xvfb-run -a --server-args="-screen 0 1024x768x24" java -Dwebdriver.chrome.driver=/usr/lib/chromium-browser/chromedriver -jar selenium-server-standalone-3.9.1.jar -log /tmp/selenium.log &
++
++        # Initialise Behat for Moodle.
++        php admin/tool/behat/cli/init.php
++      fi
++
+     - >
+       if [ "$TASK" = 'GRUNT' ];
+       then
+-        npm install --no-spin;
++        npm install --no-spin --no-shrinkwrap;
+         npm install --no-spin -g grunt ;
+       fi
+ 
+@@ -238,6 +282,14 @@ script:
+         vendor/bin/phpunit --fail-on-risky --disallow-test-output --verbose;
+       fi
+ 
++    - >
++      if [ "$TASK" = 'BEHAT' ];
++      then
++        (php -S localhost:8000 &) 2> /dev/null > /dev/null;
++        sleep 5
++        vendor/bin/behat --config /home/travis/roots/behat/behatrun/behat/behat.yml --tags @local_lae;
++      fi
++
+     - >
+       if [ "$TASK" = 'CITEST' ];
+       then
+diff --git a/LAE_readme.md b/LAE_readme.md
+new file mode 100644
+index 00000000000..308385f0900
+--- /dev/null
++++ b/LAE_readme.md
+@@ -0,0 +1,94 @@
++# [Moodle Liberal Arts Edition v3.10.10-LAE20.0.9]
++
++Welcome to the Moodle Liberal Arts Edition. The goal of the LAE is to provide a coherent package for modules, patches, and code developed (or improved) by the Collaborative Liberal Arts Moodle Project (CLAMP).
++
++This package consists of the code that the developers and instructional technologists at CLAMP schools have deemed essential to their operation of Moodle. A number of other recommend add-ons for Moodle are available through CLAMP web site (<http://www.clamp-it.org>). These recommended add-ons,  however,  have certain caveats that you should be aware of, and it is imperative that you read their respective readme files before installing them.
++
++## Legal
++
++The LAE is offered "as is", with no warranty. The institutions that comprise CLAMP have done their best to test this code, but we offer it strictly as a convenience to our members.
++
++## Contact
++
++Questions about the LAE can be sent to Charles Fulton at fultonc@lafayette.edu or 610-330-3046. CLAMP members may participate in the development of the LAE by joining CLAMP's Slack team. Please see CLAMP's collaboration and development tools page for more information:
++
++https://www.clamp-it.org/collaboration-and-development-tools/
++
++## Contents
++
++Moodle 3.10.10+LAE20.0.9 consists of the core Moodle 3.10.10 release plus a number of CLAMP-developed features and bug fixes.
++
++The following core features are included:
++
++* Anonymous Forums
++* Custom user fields in the participants list
++* Per-course resource display options
++
++### Anonymous Forums
++
++A completely new version of the Anonymous Forums option in Moodle. This version introduces a new "Anonymous User" who is attached to forum posts, allowing faculty to back up and restore a forum without losing anonymity. This feature is disabled by default.
++
++### Custom user fields in the participants list
++
++CLAMP has backported this new feature from Moodle 3.11 to Moodle 3.10. Custom user text fields may be show in the participants page. Thanks to Sam Marshall of the Open University for preparing the patch.
++
++### Per-course resource display options
++
++You may choose a default resource display option at the course level now instead of at the site-level.
++
++## Contributed modules
++
++CLAMP recommends the following contributed modules. If you have downloaded the "Package" version of the LAE then these modules are already available.
++
++### Filtered Course List
++
++This block allows you to list a current term and a future term's courses first, based on whatever term-based naming convention you use in your Moodle courses' shortname field (e.g. FA11, SP12). It also allows you to specify a course category instead."
++
++### OU Dates Report
++
++This course report, developed by Tim Hunt at the Open University, allows teachers to quickly edit date-aware items in course modules such as quizzes and assignments.
++
++### Quickmail
++
++A block used to quickly send emails to members of a class, replicating similar functionality found in other learning management systems. This version is forked from the Quickmail currently maintained by Louisiana State University. This functionality is now delivered by "CLAMPMail" (block_clampmail). For full details please see <http://www.clamp-it.org/blog/2014/01/20/the-state-of-quickmail/>.
++
++### Roster Report
++
++A course report which displays the user pictures for everyone enrolled in a course.
++
++### Ad-hoc database queries (customsql)
++
++This report plugin, developed by Tim Hunt at the Open University,  allows Administrators to set up arbitrary database queries to act as ad-hoc reports.
++
++## Downloading the LAE
++
++You can get the LAE in two ways:
++
++* Download the tar and zip packages from the CLAMP web site: <http://www.clamp-it.org/code/>
++* Download the current release branch from the CLAMP code repository:
++
++    git clone https://github.com/CLAMP-IT/moodle v3.10.10-LAE20.0.9
++    git checkout -b v3.10.10-LAE20.0.9
++
++By default this is the "Package" version which includes the contributed modules. If you just want the core version of the LAE checkout the v3.10.10-LAE20.0.9-base tag instead.
++
++CLAMP maintains two branches for each major version:
++
++* LAE\_310\_STABLE contains the core code only
++* LAE\_310\_PACKAGE includes the contributed modules
++
++## Installing the LAE
++
++If you are installing Moodle for the first time, you can follow the standard Moodle installation instructions (substituting the LAE Moodle package for the regular Moodle one)
++
++<http://docs.moodle.org/en/Installing_Moodle>
++
++## Upgrading to the LAE
++
++If you are upgrading an existing installation, you can follow your normal procedure for doing an "in-place" upgrade (replacing your old Moodle files with the new LAE ones, then copying over any additional modules or blocks you might have from the old install into the new one)
++
++A few notes:
++
++1. Always backup your original Moodle files and database before doing an upgrade.
++
++2. We *strongly* recommend doing a test upgrade on a development Moodle instance before upgrading your production instance.
+diff --git a/admin/settings/users.php b/admin/settings/users.php
+index c54a169ce34..0ce756b4c0f 100644
+--- a/admin/settings/users.php
++++ b/admin/settings/users.php
+@@ -210,6 +210,8 @@ if ($hassiteconfig
+         // Custom user profile fields are not currently supported.
+         $temp->add(new admin_setting_configmulticheckbox('showuseridentity',
+                 new lang_string('showuseridentity', 'admin'),
++// ou-specific begins #407 (until 3.11)
++/*
+                 new lang_string('showuseridentity_desc', 'admin'), array('email' => 1), array(
+                     'username'    => new lang_string('username'),
+                     'idnumber'    => new lang_string('idnumber'),
+@@ -221,6 +223,37 @@ if ($hassiteconfig
+                     'city'        => new lang_string('city'),
+                     'country'     => new lang_string('country'),
+                 )));
++*/
++                new lang_string('showuseridentity_desc', 'admin'), ['email' => 1],
++                function() {
++                    global $DB;
++
++                    // Basic fields available in user table.
++                    $fields = [
++                        'username'    => new lang_string('username'),
++                        'idnumber'    => new lang_string('idnumber'),
++                        'email'       => new lang_string('email'),
++                        'phone1'      => new lang_string('phone1'),
++                        'phone2'      => new lang_string('phone2'),
++                        'department'  => new lang_string('department'),
++                        'institution' => new lang_string('institution'),
++                        'city'        => new lang_string('city'),
++                        'country'     => new lang_string('country'),
++                    ];
++
++                    // Custom profile fields.
++                    $profilefields = $DB->get_records('user_info_field', ['datatype' => 'text'], 'sortorder ASC');
++                    foreach ($profilefields as $key => $field) {
++                        // Only reasonable-length fields can be used as identity fields.
++                        if ($field->param2 > 255) {
++                            continue;
++                        }
++                        $fields['profile_field_' . $field->shortname] = $field->name . ' *';
++                    }
++
++                    return $fields;
++                }));
++// ou-specific ends #407 (until 3.11)
+         $setting = new admin_setting_configtext('fullnamedisplay', new lang_string('fullnamedisplay', 'admin'),
+             new lang_string('configfullnamedisplay', 'admin'), 'language', PARAM_TEXT, 50);
+         $setting->set_force_ltr(true);
+diff --git a/admin/tool/dataprivacy/tests/expired_contexts_test.php b/admin/tool/dataprivacy/tests/expired_contexts_test.php
+index 6deb9192b81..8bf58c1bedc 100644
+--- a/admin/tool/dataprivacy/tests/expired_contexts_test.php
++++ b/admin/tool/dataprivacy/tests/expired_contexts_test.php
+@@ -291,6 +291,9 @@ class tool_dataprivacy_expired_contexts_testcase extends advanced_testcase {
+         global $DB;
+         $this->resetAfterTest();
+ 
++        // Drop the LAE anonymous user.
++        $DB->delete_records('user', ['username' => 'anonymous_user']);
++
+         $purposes = $this->setup_basics('PT1H', 'PT1H', 'PT1H');
+ 
+         $user = $this->getDataGenerator()->create_user(['lastaccess' => time() - YEARSECS]);
+diff --git a/admin/tool/lp/classes/external.php b/admin/tool/lp/classes/external.php
+index ada3e887e66..a74e58e4e39 100644
+--- a/admin/tool/lp/classes/external.php
++++ b/admin/tool/lp/classes/external.php
+@@ -878,11 +878,19 @@ class external extends external_api {
+         list($filtercapsql, $filtercapparams) = api::filter_users_with_capability_on_user_context_sql($cap,
+             $USER->id, SQL_PARAMS_NAMED);
+ 
++// ou-specific begins #407 (until 3.11)
++/*
+         $extrasearchfields = array();
+         if (!empty($CFG->showuseridentity) && has_capability('moodle/site:viewuseridentity', $context)) {
+             $extrasearchfields = explode(',', $CFG->showuseridentity);
+         }
+         $fields = \user_picture::fields('u', $extrasearchfields);
++*/
++        // TODO Does not support custom user profile fields (MDL-70456).
++        $userfieldsapi = \core_user\fields::for_identity($context, false)->with_userpic();
++        $fields = $userfieldsapi->get_sql('u', false, '', '', false)->selects;
++        $extrasearchfields = $userfieldsapi->get_required_fields([\core_user\fields::PURPOSE_IDENTITY]);
++// ou-specific ends #407 (until 3.11)
+ 
+         list($wheresql, $whereparams) = users_search_sql($query, 'u', true, $extrasearchfields);
+         list($sortsql, $sortparams) = users_order_by_sql('u', $query, $context);
+diff --git a/admin/user.php b/admin/user.php
+index a06b2edc047..ae2e0dbedd9 100644
+--- a/admin/user.php
++++ b/admin/user.php
+@@ -183,9 +183,17 @@
+     // These columns are always shown in the users list.
+     $requiredcolumns = array('city', 'country', 'lastaccess');
+     // Extra columns containing the extra user fields, excluding the required columns (city and country, to be specific).
++// ou-specific begins #407 (until 3.11)
++/*
+     $extracolumns = get_extra_user_fields($context, $requiredcolumns);
+     // Get all user name fields as an array.
+     $allusernamefields = get_all_user_name_fields(false, null, null, null, true);
++*/
++    $userfields = \core_user\fields::for_identity($context, true)->excluding(...$requiredcolumns);
++    $extracolumns = $userfields->get_required_fields();
++    // Get all user name fields as an array, but with firstname and lastname first.
++    $allusernamefields = \core_user\fields::get_name_fields(true);
++// ou-specific ends #407 (until 3.11)
+     $columns = array_merge($allusernamefields, $extracolumns, $requiredcolumns);
+ 
+     foreach ($columns as $column) {
+diff --git a/analytics/tests/privacy_test.php b/analytics/tests/privacy_test.php
+index d0fa280cda1..bb60dc109d8 100644
+--- a/analytics/tests/privacy_test.php
++++ b/analytics/tests/privacy_test.php
+@@ -111,6 +111,12 @@ class core_analytics_privacy_model_testcase extends \core_privacy\tests\provider
+         $prediction->action_executed(\core_analytics\prediction::ACTION_INCORRECTLY_FLAGGED, $this->model2->get_target());
+ 
+         $this->setAdminUser();
++
++        // Remove analytics related to the LAE anonymous user.
++        $systemcontext = \context_system::instance();
++        $anonymousid = core_user::get_user_by_username('anonymous_user', 'id')->id;
++        $approvedlist = new approved_userlist($systemcontext, 'core_analytics', [$anonymousid]);
++        provider::delete_data_for_users($approvedlist);
+     }
+ 
+     /**
+@@ -158,6 +164,12 @@ class core_analytics_privacy_model_testcase extends \core_privacy\tests\provider
+     public function test_delete_context_data() {
+         global $DB;
+ 
++        // Drop the LAE anonymous user.
++        $DB->delete_records('user', ['username' => 'anonymous_user']);
++
++        $usercount = $DB->count_records('user');
++        $enrolcount = $DB->count_records('user_enrolments');
++
+         // We have 4 predictions for model1 and 8 predictions for model2.
+         $this->assertEquals(12, $DB->count_records('analytics_predictions'));
+         $this->assertEquals(26, $DB->count_records('analytics_indicator_calc'));
+diff --git a/auth/db/tests/db_test.php b/auth/db/tests/db_test.php
+index 68db9f83454..57fa0b7b325 100644
+--- a/auth/db/tests/db_test.php
++++ b/auth/db/tests/db_test.php
+@@ -210,7 +210,7 @@ class auth_db_testcase extends advanced_testcase {
+         $user3 = (object)array('name'=>'admin', 'pass'=>'heslo', 'email'=>'admin@example.com'); // Should be skipped.
+         $user3->id = $DB->insert_record('auth_db_users', $user3);
+ 
+-        $this->assertCount(2, $DB->get_records('user'));
++        $this->assertCount(3, $DB->get_records('user'));
+ 
+         $trace = new null_progress_trace();
+ 
+@@ -223,8 +223,7 @@ class auth_db_testcase extends advanced_testcase {
+         $this->assertTrue($events[0] instanceof  \core\event\user_created);
+         $this->assertTrue($events[1] instanceof  \core\event\user_created);
+ 
+-        // Assert the two users were created.
+-        $this->assertEquals(4, $DB->count_records('user'));
++        $this->assertEquals(5, $DB->count_records('user'));
+         $u1 = $DB->get_record('user', array('username'=>$user1->name, 'auth'=>'db'));
+         $this->assertSame($user1->email, $u1->email);
+         $this->assertEmpty(profile_user_record($u1->id)->pet);
+@@ -243,13 +242,13 @@ class auth_db_testcase extends advanced_testcase {
+         $DB->update_record('auth_db_users', $user2b);
+ 
+         $auth->sync_users($trace, false);
+-        $this->assertEquals(4, $DB->count_records('user'));
++        $this->assertEquals(5, $DB->count_records('user'));
+         $u2 = $DB->get_record('user', array('username'=>$user2->name));
+         $this->assertSame($user2->email, $u2->email);
+         $this->assertSame($user2->animal, profile_user_record($u2->id)->pet);
+ 
+         $auth->sync_users($trace, true);
+-        $this->assertEquals(4, $DB->count_records('user'));
++        $this->assertEquals(5, $DB->count_records('user'));
+         $u2 = $DB->get_record('user', array('username'=>$user2->name));
+         $this->assertSame($user2->email, $u2->email);
+ 
+@@ -259,12 +258,12 @@ class auth_db_testcase extends advanced_testcase {
+         $auth->config->field_updatelocal_profile_field_pet = 'onlogin';
+ 
+         $auth->sync_users($trace, false);
+-        $this->assertEquals(4, $DB->count_records('user'));
++        $this->assertEquals(5, $DB->count_records('user'));
+         $u2 = $DB->get_record('user', array('username'=>$user2->name));
+         $this->assertSame($user2->email, $u2->email);
+ 
+         $auth->sync_users($trace, true);
+-        $this->assertEquals(4, $DB->count_records('user'));
++        $this->assertEquals(5, $DB->count_records('user'));
+         $u2 = $DB->get_record('user', array('username'=>$user2->name));
+         $this->assertSame($user2b->email, $u2->email);
+         $this->assertSame($user2b->animal, profile_user_record($u2->id)->pet);
+@@ -278,7 +277,7 @@ class auth_db_testcase extends advanced_testcase {
+         unset($user2b);
+ 
+         $auth->sync_users($trace, false);
+-        $this->assertEquals(4, $DB->count_records('user'));
++        $this->assertEquals(5, $DB->count_records('user'));
+         $this->assertEquals(0, $DB->count_records('user', array('deleted'=>1)));
+         $this->assertEquals(0, $DB->count_records('user', array('suspended'=>1)));
+ 
+@@ -286,7 +285,7 @@ class auth_db_testcase extends advanced_testcase {
+         $auth->config->removeuser = AUTH_REMOVEUSER_SUSPEND;
+ 
+         $auth->sync_users($trace, false);
+-        $this->assertEquals(4, $DB->count_records('user'));
++        $this->assertEquals(5, $DB->count_records('user'));
+         $this->assertEquals(0, $DB->count_records('user', array('deleted'=>1)));
+         $this->assertEquals(1, $DB->count_records('user', array('suspended'=>1)));
+ 
+@@ -294,7 +293,7 @@ class auth_db_testcase extends advanced_testcase {
+         $user2->id = $DB->insert_record('auth_db_users', $user2);
+ 
+         $auth->sync_users($trace, false);
+-        $this->assertEquals(4, $DB->count_records('user'));
++        $this->assertEquals(5, $DB->count_records('user'));
+         $this->assertEquals(0, $DB->count_records('user', array('deleted'=>1)));
+         $this->assertEquals(0, $DB->count_records('user', array('suspended'=>1)));
+ 
+@@ -304,7 +303,7 @@ class auth_db_testcase extends advanced_testcase {
+         $auth->config->removeuser = AUTH_REMOVEUSER_FULLDELETE;
+ 
+         $auth->sync_users($trace, false);
+-        $this->assertEquals(4, $DB->count_records('user'));
++        $this->assertEquals(5, $DB->count_records('user'));
+         $this->assertEquals(1, $DB->count_records('user', array('deleted'=>1)));
+         $this->assertEquals(0, $DB->count_records('user', array('suspended'=>1)));
+ 
+@@ -312,7 +311,7 @@ class auth_db_testcase extends advanced_testcase {
+         $user2->id = $DB->insert_record('auth_db_users', $user2);
+ 
+         $auth->sync_users($trace, false);
+-        $this->assertEquals(5, $DB->count_records('user'));
++        $this->assertEquals(6, $DB->count_records('user'));
+         $this->assertEquals(1, $DB->count_records('user', array('deleted'=>1)));
+         $this->assertEquals(0, $DB->count_records('user', array('suspended'=>1)));
+ 
+diff --git a/course/edit_form.php b/course/edit_form.php
+index 2dd71f2fb23..2c653b412b3 100644
+--- a/course/edit_form.php
++++ b/course/edit_form.php
+@@ -4,6 +4,7 @@ defined('MOODLE_INTERNAL') || die;
+ 
+ require_once($CFG->libdir.'/formslib.php');
+ require_once($CFG->libdir.'/completionlib.php');
++require_once($CFG->libdir.'/resourcelib.php');
+ 
+ /**
+  * The form for handling editing a course.
+@@ -283,6 +284,13 @@ class course_edit_form extends moodleform {
+         // Files and uploads.
+         $mform->addElement('header', 'filehdr', get_string('filesanduploads'));
+ 
++        // Prepare the file display default selector.
++        $resource_config = get_config('resource');
++        $choices = resourcelib_get_displayoptions(explode(',', $resource_config->displayoptions));
++        $mform->addElement('select', 'filedisplaydefault', get_string('course:filedisplay_default', 'local_lae'), $choices);
++        $mform->addHelpButton('filedisplaydefault', 'course:filedisplay_default', 'local_lae');
++        $mform->setDefault('filedisplaydefault', !isset($course->filedisplaydefault) ? $resource_config->display : $course->filedisplaydefault);
++
+         if (!empty($course->legacyfiles) or !empty($CFG->legacyfilesinnewcourses)) {
+             if (empty($course->legacyfiles)) {
+                 //0 or missing means no legacy files ever used in this course - new course or nobody turned on legacy files yet
+diff --git a/enrol/externallib.php b/enrol/externallib.php
+index 161764ae5cc..7422d2be868 100644
+--- a/enrol/externallib.php
++++ b/enrol/externallib.php
+@@ -558,9 +558,27 @@ class core_enrol_external extends external_api {
+ 
+         $results = array();
+         // Add also extra user fields.
++// ou-specific begins #407 (until 3.11)
++        $identityfields = \core_user\fields::get_identity_fields($context, true);
++        $customprofilefields = [];
++        foreach ($identityfields as $key => $value) {
++            if ($fieldname = \core_user\fields::match_custom_field($value)) {
++                unset($identityfields[$key]);
++                $customprofilefields[$fieldname] = true;
++            }
++        }
++        if ($customprofilefields) {
++            $identityfields[] = 'customfields';
++        }
++// ou-specific ends #407 (until 3.11)
+         $requiredfields = array_merge(
+             ['id', 'fullname', 'profileimageurl', 'profileimageurlsmall'],
++// ou-specific begins #407 (until 3.11)
++/*
+             get_extra_user_fields($context)
++*/
++            $identityfields
++// ou-specific ends #407 (until 3.11)
+         );
+         foreach ($users['users'] as $id => $user) {
+             // Note: We pass the course here to validate that the current user can at least view user details in this course.
+@@ -568,6 +586,17 @@ class core_enrol_external extends external_api {
+             // user records, and the user has been validated to have course:enrolreview in this course. Otherwise
+             // there is no way to find users who aren't in the course in order to enrol them.
+             if ($userdetails = user_get_user_details($user, $course, $requiredfields)) {
++// ou-specific begins #407 (until 3.11)
++                // For custom fields, only return the ones we actually need.
++                if ($customprofilefields && array_key_exists('customfields', $userdetails)) {
++                    foreach ($userdetails['customfields'] as $key => $data) {
++                        if (!array_key_exists($data['shortname'], $customprofilefields)) {
++                            unset($userdetails['customfields'][$key]);
++                        }
++                    }
++                    $userdetails['customfields'] = array_values($userdetails['customfields']);
++                }
++// ou-specific ends #407 (until 3.11)
+                 $results[] = $userdetails;
+             }
+         }
+diff --git a/enrol/locallib.php b/enrol/locallib.php
+index 0a46f0f02ef..ae5bdadfb3b 100644
+--- a/enrol/locallib.php
++++ b/enrol/locallib.php
+@@ -23,6 +23,10 @@
+  * @license    http://www.gnu.org/copyleft/gpl.html GNU GPL v3 or later
+  */
+ 
++// ou-specific begins #407 (until 3.11)
++use core_user\fields;
++
++// ou-specific ends #407 (until 3.11)
+ defined('MOODLE_INTERNAL') || die();
+ 
+ /**
+@@ -238,14 +242,28 @@ class course_enrolment_manager {
+             list($instancessql, $params, $filter) = $this->get_instance_sql();
+             list($filtersql, $moreparams) = $this->get_filter_sql();
+             $params += $moreparams;
++// ou-specific begins #407 (until 3.11)
++/*
+             $extrafields = get_extra_user_fields($this->get_context());
+             $extrafields[] = 'lastaccess';
+             $ufields = user_picture::fields('u', $extrafields);
+             $sql = "SELECT DISTINCT $ufields, COALESCE(ul.timeaccess, 0) AS lastcourseaccess
++                       FROM {user} u
++                       JOIN {user_enrolments} ue ON (ue.userid = u.id  AND ue.enrolid $instancessql)
++                       JOIN {enrol} e ON (e.id = ue.enrolid)
++                  LEFT JOIN {user_lastaccess} ul ON (ul.courseid = e.courseid AND ul.userid = u.id)";
++*/
++            $userfields = fields::for_identity($this->get_context())->with_userpic()->excluding('lastaccess');
++            ['selects' => $fieldselect, 'joins' => $fieldjoin, 'params' => $fieldjoinparams] =
++                    (array)$userfields->get_sql('u', true, '', '', false);
++            $params += $fieldjoinparams;
++            $sql = "SELECT DISTINCT $fieldselect, COALESCE(ul.timeaccess, 0) AS lastcourseaccess
+                       FROM {user} u
+                       JOIN {user_enrolments} ue ON (ue.userid = u.id  AND ue.enrolid $instancessql)
+                       JOIN {enrol} e ON (e.id = ue.enrolid)
++                           $fieldjoin
+                  LEFT JOIN {user_lastaccess} ul ON (ul.courseid = e.courseid AND ul.userid = u.id)";
++// ou-specific ends #407 (until 3.11)
+             if ($this->groupfilter) {
+                 $sql .= " LEFT JOIN ({groups_members} gm JOIN {groups} g ON (g.id = gm.groupid))
+                                     ON (u.id = gm.userid AND g.courseid = e.courseid)";
+@@ -341,6 +359,8 @@ class course_enrolment_manager {
+             list($ctxcondition, $params) = $DB->get_in_or_equal($this->context->get_parent_context_ids(true), SQL_PARAMS_NAMED, 'ctx');
+             $params['courseid'] = $this->course->id;
+             $params['cid'] = $this->course->id;
++// ou-specific begins #407 (until 3.11)
++/*
+             $extrafields = get_extra_user_fields($this->get_context());
+             $ufields = user_picture::fields('u', $extrafields);
+             $sql = "SELECT ra.id as raid, ra.contextid, ra.component, ctx.contextlevel, ra.roleid, $ufields,
+@@ -357,6 +377,28 @@ class course_enrolment_manager {
+                    WHERE ctx.id $ctxcondition AND
+                          ue.id IS NULL
+                 ORDER BY $sort $direction, ctx.depth DESC";
++*/
++            $userfields = fields::for_identity($this->get_context())->with_userpic();
++            ['selects' => $fieldselect, 'joins' => $fieldjoin, 'params' => $fieldjoinparams] =
++                    (array)$userfields->get_sql('u', true);
++            $params += $fieldjoinparams;
++            $sql = "SELECT ra.id as raid, ra.contextid, ra.component, ctx.contextlevel, ra.roleid,
++                           coalesce(u.lastaccess,0) AS lastaccess
++                           $fieldselect
++                      FROM {role_assignments} ra
++                      JOIN {user} u ON u.id = ra.userid
++                      JOIN {context} ctx ON ra.contextid = ctx.id
++                           $fieldjoin
++                 LEFT JOIN (
++                       SELECT ue.id, ue.userid
++                         FROM {user_enrolments} ue
++                         JOIN {enrol} e ON e.id = ue.enrolid
++                        WHERE e.courseid = :courseid
++                       ) ue ON ue.userid=u.id
++                     WHERE ctx.id $ctxcondition AND
++                           ue.id IS NULL
++                  ORDER BY $sort $direction, ctx.depth DESC";
++// ou-specific ends #407 (until 3.11)
+             $this->otherusers[$key] = $DB->get_records_sql($sql, $params, $page*$perpage, $perpage);
+         }
+         return $this->otherusers[$key];
+@@ -375,13 +417,40 @@ class course_enrolment_manager {
+     protected function get_basic_search_conditions($search, $searchanywhere) {
+         global $DB, $CFG;
+ 
++// ou-specific begins #407 (until 3.11)
++        // Get custom user field SQL used for querying all the fields we need (identity, name, and
++        // user picture).
++        $userfields = fields::for_identity($this->context)->with_name()->with_userpic()
++                ->excluding('username', 'lastaccess', 'maildisplay');
++        ['selects' => $fieldselects, 'joins' => $fieldjoins, 'params' => $params, 'mappings' => $mappings] =
++                (array)$userfields->get_sql('u', true, '', '', false);
++
++        // Searchable fields are only the identity and name ones (not userpic).
++        $searchable = array_fill_keys($userfields->get_required_fields(
++                [fields::PURPOSE_IDENTITY, fields::PURPOSE_NAME]), true);
++
++// ou-specific ends #407 (until 3.11)
+         // Add some additional sensible conditions
+         $tests = array("u.id <> :guestid", 'u.deleted = 0', 'u.confirmed = 1');
++// ou-specific begins #407 (until 3.11)
++/*
+         $params = array('guestid' => $CFG->siteguest);
++*/
++        $params['guestid'] = $CFG->siteguest;
++// ou-specific ends #407 (until 3.11)
+         if (!empty($search)) {
++// ou-specific begins #407 (until 3.11)
++/*
+             $conditions = get_extra_user_fields($this->get_context());
+             foreach (get_all_user_name_fields() as $field) {
+                 $conditions[] = 'u.'.$field;
++*/
++            // Include identity and name fields as conditions.
++            foreach ($mappings as $fieldname => $fieldsql) {
++                if (array_key_exists($fieldname, $searchable)) {
++                    $conditions[] = $fieldsql;
++                }
++// ou-specific ends #407 (until 3.11)
+             }
+             $conditions[] = $DB->sql_fullname('u.firstname', 'u.lastname');
+             if ($searchanywhere) {
+@@ -399,6 +468,8 @@ class course_enrolment_manager {
+         }
+         $wherecondition = implode(' AND ', $tests);
+ 
++// ou-specific begins #407 (until 3.11)
++/*
+         $extrafields = get_extra_user_fields($this->get_context(), array('username', 'lastaccess'));
+         $extrafields[] = 'username';
+         $extrafields[] = 'lastaccess';
+@@ -406,6 +477,10 @@ class course_enrolment_manager {
+         $ufields = user_picture::fields('u', $extrafields);
+ 
+         return array($ufields, $params, $wherecondition);
++*/
++        $selects = $fieldselects . ', u.username, u.lastaccess, u.maildisplay';
++        return [$selects, $fieldjoins, $params, $wherecondition];
++// ou-specific ends #407 (until 3.11)
+     }
+ 
+     /**
+@@ -486,11 +561,19 @@ class course_enrolment_manager {
+             $addedenrollment = 0, $returnexactcount = false) {
+         global $DB;
+ 
++// ou-specific begins #407 (until 3.11)
++/*
+         list($ufields, $params, $wherecondition) = $this->get_basic_search_conditions($search, $searchanywhere);
++*/
++        [$ufields, $joins, $params, $wherecondition] = $this->get_basic_search_conditions($search, $searchanywhere);
++// ou-specific ends #407 (until 3.11)
+ 
+         $fields      = 'SELECT '.$ufields;
+         $countfields = 'SELECT COUNT(1)';
+         $sql = " FROM {user} u
++-- ou-specific begins #407 (until 3.11)
++                      $joins
++-- ou-specific ends #407 (until 3.11)
+             LEFT JOIN {user_enrolments} ue ON (ue.userid = u.id AND ue.enrolid = :enrolid)
+                 WHERE $wherecondition
+                       AND ue.id IS NULL";
+@@ -518,11 +601,19 @@ class course_enrolment_manager {
+     public function search_other_users($search = '', $searchanywhere = false, $page = 0, $perpage = 25, $returnexactcount = false) {
+         global $DB, $CFG;
+ 
++// ou-specific begins #407 (until 3.11)
++/*
+         list($ufields, $params, $wherecondition) = $this->get_basic_search_conditions($search, $searchanywhere);
++*/
++        [$ufields, $joins, $params, $wherecondition] = $this->get_basic_search_conditions($search, $searchanywhere);
++// ou-specific ends #407 (until 3.11)
+ 
+         $fields      = 'SELECT ' . $ufields;
+         $countfields = 'SELECT COUNT(u.id)';
+         $sql   = " FROM {user} u
++-- ou-specific begins #407 (until 3.11)
++                        $joins
++-- ou-specific ends #407 (until 3.11)
+               LEFT JOIN {role_assignments} ra ON (ra.userid = u.id AND ra.contextid = :contextid)
+                   WHERE $wherecondition
+                     AND ra.id IS NULL";
+@@ -546,11 +637,19 @@ class course_enrolment_manager {
+      */
+     public function search_users(string $search = '', bool $searchanywhere = false, int $page = 0, int $perpage = 25,
+             bool $returnexactcount = false) {
++// ou-specific begins #407 (until 3.11)
++/*
+         list($ufields, $params, $wherecondition) = $this->get_basic_search_conditions($search, $searchanywhere);
++*/
++        [$ufields, $joins, $params, $wherecondition] = $this->get_basic_search_conditions($search, $searchanywhere);
++// ou-specific ends #407 (until 3.11)
+ 
+         $fields      = 'SELECT ' . $ufields;
+         $countfields = 'SELECT COUNT(u.id)';
+         $sql = " FROM {user} u
++-- ou-specific begins #407 (until 3.11)
++                      $joins
++-- ou-specific ends #407 (until 3.11)
+                  JOIN {user_enrolments} ue ON ue.userid = u.id
+                  JOIN {enrol} e ON ue.enrolid = e.id
+                 WHERE $wherecondition
+diff --git a/enrol/manual/amd/build/form-potential-user-selector.min.js b/enrol/manual/amd/build/form-potential-user-selector.min.js
+index 0c4aa67cdfb..e41b0755bb6 100644
+Binary files a/enrol/manual/amd/build/form-potential-user-selector.min.js and b/enrol/manual/amd/build/form-potential-user-selector.min.js differ
+diff --git a/enrol/manual/amd/build/form-potential-user-selector.min.js.map b/enrol/manual/amd/build/form-potential-user-selector.min.js.map
+index 8d53efe32a9..86686bfd453 100644
+Binary files a/enrol/manual/amd/build/form-potential-user-selector.min.js.map and b/enrol/manual/amd/build/form-potential-user-selector.min.js.map differ
+diff --git a/enrol/manual/amd/src/form-potential-user-selector.js b/enrol/manual/amd/src/form-potential-user-selector.js
+index 62b31f4fab1..39c0d440d65 100644
+--- a/enrol/manual/amd/src/form-potential-user-selector.js
++++ b/enrol/manual/amd/src/form-potential-user-selector.js
+@@ -75,13 +75,36 @@ define(['jquery', 'core/ajax', 'core/templates', 'core/str'], function($, Ajax,
+ 
+                 if (results.length <= perpage) {
+                     // Render the label.
++// ou-specific begins #407 (until 3.11)
++                    const profileRegex = /^profile_field_(.*)$/;
++// ou-specific ends #407 (until 3.11)
+                     $.each(results, function(index, user) {
+                         var ctx = user,
+                             identity = [];
+                         $.each(userfields, function(i, k) {
++// ou-specific begins #407 (until 3.11)
++/*
+                             if (typeof user[k] !== 'undefined' && user[k] !== '') {
+                                 ctx.hasidentity = true;
+                                 identity.push(user[k]);
++*/
++                            const result = profileRegex.exec(k);
++                            if (result) {
++                                if (user.customfields) {
++                                    user.customfields.forEach(function(customfield) {
++                                        if (customfield.shortname === result[1]) {
++                                            ctx.hasidentity = true;
++                                            identity.push(customfield.value);
++                                        }
++
++                                    });
++                                }
++                            } else {
++                                if (typeof user[k] !== 'undefined' && user[k] !== '') {
++                                    ctx.hasidentity = true;
++                                    identity.push(user[k]);
++                                }
++// ou-specific ends #407 (until 3.11)
+                             }
+                         });
+                         ctx.identity = identity.join(', ');
+diff --git a/enrol/manual/classes/enrol_users_form.php b/enrol/manual/classes/enrol_users_form.php
+index 257a5c2a995..e16f04ddf58 100644
+--- a/enrol/manual/classes/enrol_users_form.php
++++ b/enrol/manual/classes/enrol_users_form.php
+@@ -93,7 +93,12 @@ class enrol_manual_enrol_users_form extends moodleform {
+             'courseid' => $course->id,
+             'enrolid' => $instance->id,
+             'perpage' => $CFG->maxusersperpage,
++// ou-specific begins #407 (until 3.11)
++/*
+             'userfields' => implode(',', get_extra_user_fields($context))
++*/
++            'userfields' => implode(',', \core_user\fields::get_identity_fields($context, true))
++// ou-specific ends #407 (until 3.11)
+         );
+         $mform->addElement('autocomplete', 'userlist', get_string('selectusers', 'enrol_manual'), array(), $options);
+ 
+diff --git a/lang/en/admin.php b/lang/en/admin.php
+index fa4712986d1..fcc503c8713 100644
+--- a/lang/en/admin.php
++++ b/lang/en/admin.php
+@@ -1202,7 +1202,14 @@ $string['setupsearchengine'] = 'Setup search engine';
+ $string['showcommentscount'] = 'Show comments count';
+ $string['showdetails'] = 'Show details';
+ $string['showuseridentity'] = 'Show user identity';
++// ou-specific begins #407 (until 3.11)
++/*
+ $string['showuseridentity_desc'] = 'When selecting or searching for users, and when displaying lists of users, these fields may be shown in addition to their full name. The fields are only shown to users who have the moodle/site:viewuseridentity capability; by default, teachers and managers. (This option makes most sense if you choose one or two fields that are mandatory at your institution.)';
++*/
++$string['showuseridentity_desc'] = 'When selecting or searching for users, and when displaying lists of users, these fields may be shown in addition to their full name. The fields are only shown to users who have the moodle/site:viewuseridentity capability; by default, teachers and managers. (This option makes most sense if you choose one or two fields that are mandatory at your institution.)
++
++Fields marked * are custom user profile fields. You can select these fields, but there are currently some screens on which they will not appear.';
++// ou-specific ends #407 (until 3.11)
+ $string['simplexmlrequired'] = 'The SimpleXML PHP extension is now required by Moodle.';
+ $string['sitemenubar'] = 'Site navigation';
+ $string['sitemailcharset'] = 'Character set';
+diff --git a/lib/adminlib.php b/lib/adminlib.php
+index 1fac9fdda43..4220349300f 100644
+--- a/lib/adminlib.php
++++ b/lib/adminlib.php
+@@ -3030,6 +3030,10 @@ class admin_setting_configcheckbox extends admin_setting {
+ class admin_setting_configmulticheckbox extends admin_setting {
+     /** @var array Array of choices value=>label */
+     public $choices;
++// ou-specific begins #407 (until 3.11)
++    /** @var callable|null Loader function for choices */
++    protected $choiceloader = null;
++// ou-specific ends #407 (until 3.11)
+ 
+     /**
+      * Constructor: uses parent::__construct
+@@ -3041,7 +3045,17 @@ class admin_setting_configmulticheckbox extends admin_setting {
+      * @param array $choices array of $value=>$label for each checkbox
+      */
+     public function __construct($name, $visiblename, $description, $defaultsetting, $choices) {
++// ou-specific begins #407 (until 3.11)
++/*
+         $this->choices = $choices;
++*/
++        if (is_array($choices)) {
++            $this->choices = $choices;
++        }
++        if (is_callable($choices)) {
++            $this->choiceloader = $choices;
++        }
++// ou-specific ends #407 (until 3.11)
+         parent::__construct($name, $visiblename, $description, $defaultsetting);
+     }
+ 
+@@ -3058,6 +3072,13 @@ class admin_setting_configmulticheckbox extends admin_setting {
+         }
+         .... load choices here
+         */
++// ou-specific begins #407 (until 3.11)
++        if ($this->choiceloader) {
++            if (!is_array($this->choices)) {
++                $this->choices = call_user_func($this->choiceloader);
++            }
++        }
++// ou-specific ends #407 (until 3.11)
+         return true;
+     }
+ 
+diff --git a/lib/classes/user.php b/lib/classes/user.php
+index ac2430003cd..1d4fea61a5b 100644
+--- a/lib/classes/user.php
++++ b/lib/classes/user.php
+@@ -251,6 +251,8 @@ class core_user {
+         $extrasql = '';
+         $extraparams = [];
+ 
++// ou-specific begins #407 (until 3.11)
++/*
+         if (empty($CFG->showuseridentity)) {
+             // Explode gives wrong result with empty string.
+             $extra = [];
+@@ -270,6 +272,13 @@ class core_user {
+         }
+         $selectfields = \user_picture::fields('u',
+                 array_merge(get_all_user_name_fields(), $extrafieldlist));
++*/
++        // TODO Does not support custom user profile fields (MDL-70456).
++        $userfieldsapi = \core_user\fields::for_identity(null, false)->with_userpic()->with_name()
++            ->including('username', 'deleted');
++        $selectfields = $userfieldsapi->get_sql('u', false, '', '', false)->selects;
++        $extra = $userfieldsapi->get_required_fields([\core_user\fields::PURPOSE_IDENTITY]);
++// ou-specific ends #407 (until 3.11)
+ 
+         $index = 1;
+         foreach ($extra as $fieldname) {
+diff --git a/lib/datalib.php b/lib/datalib.php
+index cf635c5666a..b856b5eb65f 100644
+--- a/lib/datalib.php
++++ b/lib/datalib.php
+@@ -479,7 +479,12 @@ function get_users_listing($sort='lastaccess', $dir='ASC', $page=0, $recordsperp
+ 
+     $fullname  = $DB->sql_fullname();
+ 
++// ou-specific begins #407 (until 3.11)
++/*
+     $select = "deleted <> 1 AND id <> :guestid";
++*/
++    $select = "deleted <> 1 AND u.id <> :guestid";
++// ou-specific ends #407 (until 3.11)
+     $params = array('guestid' => $CFG->siteguest);
+ 
+     if (!empty($search)) {
+@@ -502,6 +507,12 @@ function get_users_listing($sort='lastaccess', $dir='ASC', $page=0, $recordsperp
+     }
+ 
+     if ($extraselect) {
++// ou-specific begins #407 (until 3.11)
++        // The extra WHERE clause may refer to the 'id' column which can now be ambiguous because we
++        // changed the query to include joins, so replace any 'id' that is on its own (no alias)
++        // with 'u.id'.
++        $extraselect = preg_replace('~([ =]|^)id([ =]|$)~', '$1u.id$2', $extraselect);
++// ou-specific ends #407 (until 3.11)
+         $select .= " AND $extraselect";
+         $params = $params + (array)$extraparams;
+     }
+@@ -512,6 +523,8 @@ function get_users_listing($sort='lastaccess', $dir='ASC', $page=0, $recordsperp
+ 
+     // If a context is specified, get extra user fields that the current user
+     // is supposed to see.
++// ou-specific begins #407 (until 3.11)
++/*
+     $extrafields = '';
+     if ($extracontext) {
+         $extrafields = get_extra_user_fields_sql($extracontext, '', '',
+@@ -520,12 +533,30 @@ function get_users_listing($sort='lastaccess', $dir='ASC', $page=0, $recordsperp
+     }
+     $namefields = get_all_user_name_fields(true);
+     $extrafields = "$extrafields, $namefields";
++*/
++    $userfields = \core_user\fields::for_name();
++    if ($extracontext) {
++        $userfields->with_identity($extracontext, true);
++    }
++    $userfields->excluding('id', 'username', 'email', 'city', 'country', 'lastaccess', 'confirmed', 'mnethostid');
++    ['selects' => $selects, 'joins' => $joins, 'params' => $joinparams] =
++            (array)$userfields->get_sql('u', true);
++// ou-specific ends #407 (until 3.11)
+ 
+     // warning: will return UNCONFIRMED USERS
++// ou-specific begins #407 (until 3.11)
++/*
+     return $DB->get_records_sql("SELECT id, username, email, city, country, lastaccess, confirmed, mnethostid, suspended $extrafields
+                                    FROM {user}
+                                   WHERE $select
+                                   $sort", $params, $page, $recordsperpage);
++*/
++    return $DB->get_records_sql("SELECT u.id, username, email, city, country, lastaccess, confirmed, mnethostid, suspended $selects
++                                   FROM {user} u
++                                        $joins
++                                  WHERE $select
++                                  $sort", array_merge($params, $joinparams), $page, $recordsperpage);
++// ou-specific ends #407 (until 3.11)
+ 
+ }
+ 
+diff --git a/lib/deprecatedlib.php b/lib/deprecatedlib.php
+index 563943dad9a..98fed973474 100644
+--- a/lib/deprecatedlib.php
++++ b/lib/deprecatedlib.php
+@@ -3221,9 +3221,17 @@ function user_get_participants_sql($courseid, $groupid = 0, $accesssince = 0, $r
+             }
+             $conditions[] = $idnumber;
+ 
++// ou-specific begins #407 (until 3.11)
++/*
+             if (!empty($CFG->showuseridentity)) {
+                 // Search all user identify fields.
+                 $extrasearchfields = explode(',', $CFG->showuseridentity);
++*/
++            // TODO Does not support custom user profile fields (MDL-70456).
++            $extrasearchfields = \core_user\fields::get_identity_fields($context, false);
++            if (!empty($extrasearchfields)) {
++                // Search all user identify fields.
++// ou-specific ends #407 (until 3.11)
+                 foreach ($extrasearchfields as $extrasearchfield) {
+                     if (in_array($extrasearchfield, ['email', 'idnumber', 'country'])) {
+                         // Already covered above. Search by country not supported.
+diff --git a/lib/moodlelib.php b/lib/moodlelib.php
+index 587d13d09f9..4f57ef09a51 100644
+--- a/lib/moodlelib.php
++++ b/lib/moodlelib.php
+@@ -3645,12 +3645,20 @@ function fullname($user, $override=false) {
+ function get_all_user_name_fields($returnsql = false, $tableprefix = null, $prefix = null, $fieldprefix = null, $order = false) {
+     // This array is provided in this order because when called by fullname() (above) if firstname is before
+     // firstnamephonetic str_replace() will change the wrong placeholder.
++// ou-specific begins #407 (until 3.11)
++/*
+     $alternatenames = array('firstnamephonetic' => 'firstnamephonetic',
+                             'lastnamephonetic' => 'lastnamephonetic',
+                             'middlename' => 'middlename',
+                             'alternatename' => 'alternatename',
+                             'firstname' => 'firstname',
+                             'lastname' => 'lastname');
++*/
++    $alternatenames = [];
++    foreach (\core_user\fields::get_name_fields() as $field) {
++        $alternatenames[$field] = $field;
++    }
++// ou-specific ends #407 (until 3.11)
+ 
+     // Let's add a prefix to the array of user name fields if provided.
+     if ($prefix) {
+@@ -3762,6 +3770,8 @@ function order_in_string($values, $stringformat) {
+  *   listed in $already
+  */
+ function get_extra_user_fields($context, $already = array()) {
++// ou-specific begins #407 (until 3.11)
++/*
+     global $CFG;
+ 
+     // Only users with permission get the extra fields.
+@@ -3802,6 +3812,10 @@ function get_extra_user_fields($context, $already = array()) {
+     $extra = array_values($extra);
+ 
+     return $extra;
++*/
++    $fields = \core_user\fields::for_identity($context, false)->excluding(...$already);
++    return $fields->get_required_fields();
++// ou-specific ends #407 (until 3.11)
+ }
+ 
+ /**
+@@ -3816,6 +3830,8 @@ function get_extra_user_fields($context, $already = array()) {
+  * @return string Partial SQL select clause, beginning with comma, for example ',u.idnumber,u.department' unless it is blank
+  */
+ function get_extra_user_fields_sql($context, $alias='', $prefix='', $already = array()) {
++// ou-specific begins #407 (until 3.11)
++/*
+     $fields = get_extra_user_fields($context, $already);
+     $result = '';
+     // Add punctuation for alias.
+@@ -3829,6 +3845,13 @@ function get_extra_user_fields_sql($context, $alias='', $prefix='', $already = a
+         }
+     }
+     return $result;
++*/
++    $fields = \core_user\fields::for_identity($context, false)->excluding(...$already);
++    // Note: There will never be any joins or join params because we turned off profile fields.
++    $selects = $fields->get_sql($alias, false, $prefix)->selects;
++
++    return $selects;
++// ou-specific ends #407 (until 3.11)
+ }
+ 
+ /**
+@@ -3837,6 +3860,8 @@ function get_extra_user_fields_sql($context, $alias='', $prefix='', $already = a
+  * @return string Text description taken from language file, e.g. 'Phone number'
+  */
+ function get_user_field_name($field) {
++// ou-specific begins #407 (until 3.11)
++/*
+     // Some fields have language strings which are not the same as field name.
+     switch ($field) {
+         case 'url' : {
+@@ -3863,6 +3888,9 @@ function get_user_field_name($field) {
+     }
+     // Otherwise just use the same lang string.
+     return get_string($field);
++*/
++    return \core_user\fields::get_display_name($field);
++// ou-specific ends #407 (until 3.11)
+ }
+ 
+ /**
+diff --git a/lib/myprofilelib.php b/lib/myprofilelib.php
+index 0c9e2dd92f4..f1604b59a92 100644
+--- a/lib/myprofilelib.php
++++ b/lib/myprofilelib.php
+@@ -125,12 +125,18 @@ function core_myprofile_navigation(core_user\output\myprofile\tree $tree, $user,
+     } else {
+         $hiddenfields = array_flip(explode(',', $CFG->hiddenuserfields));
+     }
++// ou-specific begins #407 (until 3.11)
++/*
+     $canviewuseridentity = has_capability('moodle/site:viewuseridentity', $courseorusercontext);
+     if ($canviewuseridentity) {
+         $identityfields = array_flip(explode(',', $CFG->showuseridentity));
+     } else {
+         $identityfields = array();
+     }
++*/
++    // TODO Does not support custom user profile fields (MDL-70456).
++    $identityfields = array_flip(\core_user\fields::get_identity_fields($courseorusercontext, false));
++// ou-specific ends #407 (until 3.11)
+ 
+     if (is_mnet_remote_user($user)) {
+         $sql = "SELECT h.id, h.name, h.wwwroot,
+@@ -156,7 +162,12 @@ function core_myprofile_navigation(core_user\output\myprofile\tree $tree, $user,
+             or ($user->maildisplay == core_user::MAILDISPLAY_COURSE_MEMBERS_ONLY and enrol_sharing_course($user, $USER))
+             or has_capability('moodle/course:useremail', $courseorusercontext) // TODO: Deprecate/remove for MDL-37479.
+         ))
++// ou-specific begins #407 (until 3.11)
++/*
+         or (isset($identityfields['email']) and $canviewuseridentity)
++*/
++        or (isset($identityfields['email']))
++// ou-specific ends #407 (until 3.11)
+        ) {
+         $node = new core_user\output\myprofile\node('contact', 'email', get_string('email'), null, null,
+             obfuscate_mailto($user->email, ''));
+diff --git a/lib/phpunit/tests/advanced_test.php b/lib/phpunit/tests/advanced_test.php
+index 8a2e142bc3e..2ba5c691ab5 100644
+--- a/lib/phpunit/tests/advanced_test.php
++++ b/lib/phpunit/tests/advanced_test.php
+@@ -171,9 +171,9 @@ class core_phpunit_advanced_testcase extends advanced_testcase {
+         $course = $this->getDataGenerator()->create_course();
+         $this->assertEquals($numcourses + 1, $DB->count_records('course'));
+ 
+-        $this->assertEquals(2, $DB->count_records('user'));
++        $this->assertEquals(3, $DB->count_records('user'));
+         $DB->delete_records('user', array('id'=>1));
+-        $this->assertEquals(1, $DB->count_records('user'));
++        $this->assertEquals(2, $DB->count_records('user'));
+ 
+         $this->resetAllData();
+ 
+@@ -187,11 +187,11 @@ class core_phpunit_advanced_testcase extends advanced_testcase {
+         $displayid = $DB->insert_record('user_preferences', array('userid'=>2, 'name'=> 'phpunittest', 'value'=>'x'));
+         $this->assertEquals($originaldisplayid, $displayid);
+ 
+-        $this->assertEquals(2, $DB->count_records('user'));
++        $this->assertEquals(3, $DB->count_records('user'));
+         $DB->delete_records('user', array('id'=>2));
+         $user = $this->getDataGenerator()->create_user();
+-        $this->assertEquals(2, $DB->count_records('user'));
+-        $this->assertGreaterThan(2, $user->id);
++        $this->assertEquals(3, $DB->count_records('user'));
++        $this->assertGreaterThan(3, $user->id);
+ 
+         $this->resetAllData();
+ 
+@@ -199,7 +199,7 @@ class core_phpunit_advanced_testcase extends advanced_testcase {
+         $course = $this->getDataGenerator()->create_course();
+         $this->assertEquals($numcourses + 1, $DB->count_records('course'));
+ 
+-        $this->assertEquals(2, $DB->count_records('user'));
++        $this->assertEquals(3, $DB->count_records('user'));
+         $DB->delete_records('user', array('id'=>2));
+ 
+         $this->resetAllData();
+@@ -208,7 +208,7 @@ class core_phpunit_advanced_testcase extends advanced_testcase {
+         $course = $this->getDataGenerator()->create_course();
+         $this->assertEquals($numcourses + 1, $DB->count_records('course'));
+ 
+-        $this->assertEquals(2, $DB->count_records('user'));
++        $this->assertEquals(3, $DB->count_records('user'));
+     }
+ 
+     public function test_change_detection() {
+diff --git a/lib/tests/fixtures/statslib-test01.xml b/lib/tests/fixtures/statslib-test01.xml
+index bcfc903a56a..aa0f2a27b0a 100644
+--- a/lib/tests/fixtures/statslib-test01.xml
++++ b/lib/tests/fixtures/statslib-test01.xml
+@@ -53,7 +53,7 @@
+             <value>[end]</value>
+             <value>0</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 9 -->
+@@ -62,7 +62,7 @@
+             <value>[end]</value>
+             <value>[frontpage_roleid]</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 11 -->
+diff --git a/lib/tests/fixtures/statslib-test02.xml b/lib/tests/fixtures/statslib-test02.xml
+index 1b1cd351751..df82b60132b 100644
+--- a/lib/tests/fixtures/statslib-test02.xml
++++ b/lib/tests/fixtures/statslib-test02.xml
+@@ -53,7 +53,7 @@
+             <value>[end]</value>
+             <value>0</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 9 -->
+@@ -62,7 +62,7 @@
+             <value>[end]</value>
+             <value>[frontpage_roleid]</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 11 -->
+diff --git a/lib/tests/fixtures/statslib-test03.xml b/lib/tests/fixtures/statslib-test03.xml
+index db0c2a0344e..7dfbeaed0e6 100644
+--- a/lib/tests/fixtures/statslib-test03.xml
++++ b/lib/tests/fixtures/statslib-test03.xml
+@@ -59,7 +59,7 @@
+             <value>[end]</value>
+             <value>0</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 9 -->
+@@ -68,7 +68,7 @@
+             <value>[end]</value>
+             <value>[frontpage_roleid]</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 11 -->
+diff --git a/lib/tests/fixtures/statslib-test04.xml b/lib/tests/fixtures/statslib-test04.xml
+index efe9e2ace0d..b06d675c7b8 100644
+--- a/lib/tests/fixtures/statslib-test04.xml
++++ b/lib/tests/fixtures/statslib-test04.xml
+@@ -65,7 +65,7 @@
+             <value>[end]</value>
+             <value>0</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 9 -->
+@@ -74,7 +74,7 @@
+             <value>[end]</value>
+             <value>[frontpage_roleid]</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 11 -->
+diff --git a/lib/tests/fixtures/statslib-test05.xml b/lib/tests/fixtures/statslib-test05.xml
+index b839f74f78b..5eea7fc2563 100644
+--- a/lib/tests/fixtures/statslib-test05.xml
++++ b/lib/tests/fixtures/statslib-test05.xml
+@@ -59,7 +59,7 @@
+             <value>[end]</value>
+             <value>0</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 9 -->
+@@ -68,7 +68,7 @@
+             <value>[end]</value>
+             <value>[frontpage_roleid]</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 11 -->
+diff --git a/lib/tests/fixtures/statslib-test06.xml b/lib/tests/fixtures/statslib-test06.xml
+index 04017102ee5..be0e15588aa 100644
+--- a/lib/tests/fixtures/statslib-test06.xml
++++ b/lib/tests/fixtures/statslib-test06.xml
+@@ -65,7 +65,7 @@
+             <value>[end]</value>
+             <value>0</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 9 -->
+@@ -74,7 +74,7 @@
+             <value>[end]</value>
+             <value>[frontpage_roleid]</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 11 -->
+diff --git a/lib/tests/fixtures/statslib-test07.xml b/lib/tests/fixtures/statslib-test07.xml
+index 86379b8b91d..85e70fde109 100644
+--- a/lib/tests/fixtures/statslib-test07.xml
++++ b/lib/tests/fixtures/statslib-test07.xml
+@@ -65,7 +65,7 @@
+             <value>[end]</value>
+             <value>0</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 9 -->
+@@ -74,7 +74,7 @@
+             <value>[end]</value>
+             <value>[frontpage_roleid]</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 11 -->
+diff --git a/lib/tests/fixtures/statslib-test08.xml b/lib/tests/fixtures/statslib-test08.xml
+index 62a90c91bf1..1e894a3c7ec 100644
+--- a/lib/tests/fixtures/statslib-test08.xml
++++ b/lib/tests/fixtures/statslib-test08.xml
+@@ -59,7 +59,7 @@
+             <value>[end]</value>
+             <value>0</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 9 -->
+@@ -68,7 +68,7 @@
+             <value>[end]</value>
+             <value>[frontpage_roleid]</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 11 -->
+diff --git a/lib/tests/fixtures/statslib-test09.xml b/lib/tests/fixtures/statslib-test09.xml
+index efe77b691d5..f04beb5c295 100644
+--- a/lib/tests/fixtures/statslib-test09.xml
++++ b/lib/tests/fixtures/statslib-test09.xml
+@@ -65,7 +65,7 @@
+             <value>[end]</value>
+             <value>0</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 9 -->
+@@ -74,7 +74,7 @@
+             <value>[end]</value>
+             <value>[frontpage_roleid]</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 11 -->
+diff --git a/lib/tests/fixtures/statslib-test10.xml b/lib/tests/fixtures/statslib-test10.xml
+index 83d7fcc2c1f..22106f32449 100644
+--- a/lib/tests/fixtures/statslib-test10.xml
++++ b/lib/tests/fixtures/statslib-test10.xml
+@@ -53,7 +53,7 @@
+             <value>[end]</value>
+             <value>0</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 11 -->
+diff --git a/mod/assign/classes/output/grading_app.php b/mod/assign/classes/output/grading_app.php
+index 214bc5c8f6b..64e6818cb58 100644
+--- a/mod/assign/classes/output/grading_app.php
++++ b/mod/assign/classes/output/grading_app.php
+@@ -168,7 +168,13 @@ class grading_app implements templatable, renderable {
+         $export->rarrow = $output->rarrow();
+         $export->larrow = $output->larrow();
+         // List of identity fields to display (the user info will not contain any fields the user cannot view anyway).
++// ou-specific begins #407 (until 3.11)
++/*
+         $export->showuseridentity = $CFG->showuseridentity;
++*/
++        // TODO Does not support custom user profile fields (MDL-70456).
++        $export->showuseridentity = implode(',', \core_user\fields::get_identity_fields(null, false));
++// ou-specific ends #407 (until 3.11)
+         $export->currentuserid = $USER->id;
+         $helpicon = new \help_icon('sendstudentnotifications', 'assign');
+         $export->helpicon = $helpicon->export_for_template($output);
+diff --git a/mod/forum/amd/build/inpage_reply.min.js b/mod/forum/amd/build/inpage_reply.min.js
+index 97bf41c2d3b..964cdfae67f 100644
+Binary files a/mod/forum/amd/build/inpage_reply.min.js and b/mod/forum/amd/build/inpage_reply.min.js differ
+diff --git a/mod/forum/amd/build/inpage_reply.min.js.map b/mod/forum/amd/build/inpage_reply.min.js.map
+index 6439760ef21..333b1946aaa 100644
+Binary files a/mod/forum/amd/build/inpage_reply.min.js.map and b/mod/forum/amd/build/inpage_reply.min.js.map differ
+diff --git a/mod/forum/amd/build/posts_list.min.js b/mod/forum/amd/build/posts_list.min.js
+index c009bf3a4ee..98d65ecb006 100644
+Binary files a/mod/forum/amd/build/posts_list.min.js and b/mod/forum/amd/build/posts_list.min.js differ
+diff --git a/mod/forum/amd/build/posts_list.min.js.map b/mod/forum/amd/build/posts_list.min.js.map
+index 5a1093bf35e..027a12bf0f6 100644
+Binary files a/mod/forum/amd/build/posts_list.min.js.map and b/mod/forum/amd/build/posts_list.min.js.map differ
+diff --git a/mod/forum/amd/build/repository.min.js b/mod/forum/amd/build/repository.min.js
+index 353dffc57d9..15e7c117b59 100644
+Binary files a/mod/forum/amd/build/repository.min.js and b/mod/forum/amd/build/repository.min.js differ
+diff --git a/mod/forum/amd/build/repository.min.js.map b/mod/forum/amd/build/repository.min.js.map
+index 6d46326ed22..35e73752806 100644
+Binary files a/mod/forum/amd/build/repository.min.js.map and b/mod/forum/amd/build/repository.min.js.map differ
+diff --git a/mod/forum/amd/src/inpage_reply.js b/mod/forum/amd/src/inpage_reply.js
+index 2e77c5d74ab..69ba9b16c3d 100644
+--- a/mod/forum/amd/src/inpage_reply.js
++++ b/mod/forum/amd/src/inpage_reply.js
+@@ -105,13 +105,16 @@ define([
+             var isprivatereply = form.elements.privatereply != undefined ? form.elements.privatereply.checked : false;
+             var modeSelector = root.find(Selectors.post.modeSelect);
+             var mode = modeSelector.length ? parseInt(modeSelector.get(0).value) : null;
++            var isanonymousreply = form.elements.anonymousreply != undefined ? form.elements.anonymousreply.checked : false;
++            var mode = parseInt(root.find(Selectors.post.modeSelect).get(0).value);
+             var newid;
+ 
+             if (message.length) {
+                 showSubmitButtonLoadingIcon(submitButton);
+                 allButtons.prop('disabled', true);
+ 
+-                Repository.addDiscussionPost(postid, subject, message, messageformat, isprivatereply, topreferredformat)
++                Repository.addDiscussionPost(postid, subject, message, messageformat, isprivatereply,
++                    topreferredformat, isanonymousreply)
+                     .then(function(context) {
+                         var message = context.messages.reduce(function(carry, message) {
+                             if (message.type == 'success') {
+diff --git a/mod/forum/amd/src/posts_list.js b/mod/forum/amd/src/posts_list.js
+index 1f671203ca9..bbc1b36b0c1 100644
+--- a/mod/forum/amd/src/posts_list.js
++++ b/mod/forum/amd/src/posts_list.js
+@@ -65,6 +65,8 @@ define([
+                 sesskey: M.cfg.sesskey,
+                 parentsubject: currentSubject.data('replySubject'),
+                 canreplyprivately: $(e.currentTarget).data('can-reply-privately'),
++                canreplyanonymously: $(e.currentTarget).data('can-reply-anonymously'),
++                mustreplyanonymously: $(e.currentTarget).data('must-reply-anonymously'),
+                 postformat: InPageReply.CONTENT_FORMATS.MOODLE
+             };
+ 
+diff --git a/mod/forum/amd/src/repository.js b/mod/forum/amd/src/repository.js
+index 1da63cda19b..15bbefcf961 100644
+--- a/mod/forum/amd/src/repository.js
++++ b/mod/forum/amd/src/repository.js
+@@ -42,7 +42,7 @@ define(['core/ajax'], function(Ajax) {
+         return Ajax.call([request])[0];
+     };
+ 
+-    var addDiscussionPost = function(postid, subject, message, messageformat, isprivatereply, topreferredformat) {
++    var addDiscussionPost = function(postid, subject, message, messageformat, isprivatereply, topreferredformat, isanonymousreply) {
+         var request = {
+             methodname: 'mod_forum_add_discussion_post',
+             args: {
+@@ -56,6 +56,10 @@ define(['core/ajax'], function(Ajax) {
+                 }, {
+                     name: "topreferredformat",
+                     value: topreferredformat,
++                },
++                {
++                    name: 'anonymous',
++                    value: isanonymousreply,
+                 }]
+             }
+         };
+diff --git a/mod/forum/classes/local/data_mappers/legacy/forum.php b/mod/forum/classes/local/data_mappers/legacy/forum.php
+index 6b8ec772b80..dfbca89c607 100644
+--- a/mod/forum/classes/local/data_mappers/legacy/forum.php
++++ b/mod/forum/classes/local/data_mappers/legacy/forum.php
+@@ -73,7 +73,8 @@ class forum {
+                 'displaywordcount' => $forum->should_display_word_count(),
+                 'lockdiscussionafter' => $forum->get_lock_discussions_after(),
+                 'duedate' => $forum->get_due_date(),
+-                'cutoffdate' => $forum->get_cutoff_date()
++                'cutoffdate' => $forum->get_cutoff_date(),
++                'anonymous' => $forum->get_anonymity()
+             ];
+         }, $forums);
+     }
+diff --git a/mod/forum/classes/local/data_mappers/legacy/post.php b/mod/forum/classes/local/data_mappers/legacy/post.php
+index 09742c1ed5c..3e33b7e4e31 100644
+--- a/mod/forum/classes/local/data_mappers/legacy/post.php
++++ b/mod/forum/classes/local/data_mappers/legacy/post.php
+@@ -63,6 +63,7 @@ class post {
+                 'privatereplyto' => $post->get_private_reply_recipient_id(),
+                 'wordcount' => $post->get_wordcount(),
+                 'charcount' => $post->get_charcount(),
++                'hiddenuserid' => $post->get_hiddenuserid(),
+             ];
+         }, $posts);
+     }
+diff --git a/mod/forum/classes/local/entities/forum.php b/mod/forum/classes/local/entities/forum.php
+index 4d4808b824b..4f8f5f06c71 100644
+--- a/mod/forum/classes/local/entities/forum.php
++++ b/mod/forum/classes/local/entities/forum.php
+@@ -107,6 +107,8 @@ class forum {
+     private $duedate;
+     /** @var int $cutoffdate Timestamp after which forum posts will no longer be accepted */
+     private $cutoffdate;
++    /** @var int $anonymous The level of anonymity allowed in this forum */
++    private $anonymous;
+ 
+     /**
+      * Constructor
+@@ -144,6 +146,7 @@ class forum {
+      * @param int $lockdiscussionafter Timestamp after which discussions should be locked
+      * @param int $duedate Timestamp that represents the due date for forum posts
+      * @param int $cutoffdate Timestamp after which forum posts will no longer be accepted
++     * @param int $anonymous The level of anonymity allowed in this forum
+      */
+     public function __construct(
+         context $context,
+@@ -178,7 +181,8 @@ class forum {
+         bool $displaywordcount,
+         int $lockdiscussionafter,
+         int $duedate,
+-        int $cutoffdate
++        int $cutoffdate,
++        int $anonymous
+     ) {
+         $this->context = $context;
+         $this->coursemodule = $coursemodule;
+@@ -213,6 +217,7 @@ class forum {
+         $this->lockdiscussionafter = $lockdiscussionafter;
+         $this->duedate = $duedate;
+         $this->cutoffdate = $cutoffdate;
++        $this->anonymous = $anonymous;
+     }
+ 
+     /**
+@@ -656,6 +661,15 @@ class forum {
+         return false;
+     }
+ 
++    /**
++     * Get the level of anonymity.
++     *
++     * @return int
++     */
++    public function get_anonymity() : int {
++        return $this->anonymous;
++    }
++
+     /**
+      * Is the discussion locked? - Takes into account both discussion settings AND forum's criteria
+      *
+diff --git a/mod/forum/classes/local/entities/post.php b/mod/forum/classes/local/entities/post.php
+index 90cd0fc6ba8..c80a77d88d3 100644
+--- a/mod/forum/classes/local/entities/post.php
++++ b/mod/forum/classes/local/entities/post.php
+@@ -71,6 +71,8 @@ class post {
+     private $wordcount;
+     /** @var int $charcount Number of chars in the message */
+     private $charcount;
++    /** @var int $hiddenuserid The actual user id when anonymity is active */
++    private $hiddenuserid;
+ 
+     /**
+      * Constructor.
+@@ -91,6 +93,7 @@ class post {
+      * @param bool $mailnow Should this post be mailed immediately
+      * @param bool $deleted Is the post deleted
+      * @param int $privatereplyto Which user this reply is intended for in a private reply situation
++     * @param int $hiddenuserid The actual user id when anonymity is active
+      */
+     public function __construct(
+         int $id,
+@@ -110,7 +113,8 @@ class post {
+         bool $deleted,
+         int $privatereplyto,
+         ?int $wordcount,
+-        ?int $charcount
++        ?int $charcount,
++        int $hiddenuserid
+     ) {
+         $this->id = $id;
+         $this->discussionid = $discussionid;
+@@ -130,6 +134,7 @@ class post {
+         $this->privatereplyto = $privatereplyto;
+         $this->wordcount = $wordcount;
+         $this->charcount = $charcount;
++        $this->hiddenuserid = $hiddenuserid;
+     }
+ 
+     /**
+@@ -285,6 +290,26 @@ class post {
+         return !empty($this->privatereplyto);
+     }
+ 
++    /**
++     * Is this post owned by the anonymous user?
++     *
++     * @return bool
++     */
++    public function is_anonymous() : bool {
++        global $CFG;
++
++        return ($this->hiddenuserid != 0 && $this->authorid == $CFG->anonymous_userid);
++    }
++
++    /**
++     * Get the hidden user id, if set.
++     *
++     * @return int
++     */
++    public function get_hiddenuserid() : int {
++        return $this->hiddenuserid;
++    }
++
+     /**
+      * Get the id of the user that this post was intended for.
+      *
+@@ -305,13 +330,17 @@ class post {
+     }
+ 
+     /**
+-     * Check if the given user authored this post.
++     * Check if the given user authored this post. Checks hiddenuserid if set.
+      *
+      * @param stdClass $user The user to check.
+      * @return bool
+      */
+     public function is_owned_by_user(stdClass $user) : bool {
+-        return $this->get_author_id() == $user->id;
++        if ($this->get_hiddenuserid() != 0) {
++            return $this->get_hiddenuserid() == $user->id;
++        } else {
++            return $this->get_author_id() == $user->id;
++        }
+     }
+ 
+     /**
+diff --git a/mod/forum/classes/local/exporters/post.php b/mod/forum/classes/local/exporters/post.php
+index 6979bb7d8db..bca0a25fcdb 100644
+--- a/mod/forum/classes/local/exporters/post.php
++++ b/mod/forum/classes/local/exporters/post.php
+@@ -379,6 +379,8 @@ class post extends exporter {
+         $cancontrolreadstatus = $capabilitymanager->can_manually_control_post_read_status($user);
+         $canselfenrol = $capabilitymanager->can_self_enrol($user);
+         $canreplyprivately = $capabilitymanager->can_reply_privately_to_post($user, $post);
++        $canreplyanonymously = $forum->get_anonymity() === FORUM_ANONYMOUS_ALLOWED || $forum->get_anonymity() === FORUM_ANONYMOUS_ALWAYS;
++        $mustreplyanonymously = $forum->get_anonymity() === FORUM_ANONYMOUS_ALWAYS;
+ 
+         $urlfactory = $this->related['urlfactory'];
+         $viewurl = $canview ? $urlfactory->get_view_post_url_from_post($post) : null;
+@@ -456,6 +458,8 @@ class post extends exporter {
+                 'export' => $canexport,
+                 'controlreadstatus' => $cancontrolreadstatus,
+                 'canreplyprivately' => $canreplyprivately,
++                'canreplyanonymously' => $canreplyanonymously,
++                'mustreplyanonymously' => $mustreplyanonymously,
+                 'selfenrol' => $canselfenrol
+             ],
+             'urls' => [
+diff --git a/mod/forum/classes/local/factories/entity.php b/mod/forum/classes/local/factories/entity.php
+index 9ed4c5498ae..b46b3745a01 100644
+--- a/mod/forum/classes/local/factories/entity.php
++++ b/mod/forum/classes/local/factories/entity.php
+@@ -104,7 +104,8 @@ class entity {
+             $record->displaywordcount,
+             $record->lockdiscussionafter,
+             $record->duedate,
+-            $record->cutoffdate
++            $record->cutoffdate,
++            $record->anonymous
+         );
+     }
+ 
+@@ -158,7 +159,8 @@ class entity {
+             $record->deleted,
+             $record->privatereplyto,
+             $record->wordcount,
+-            $record->charcount
++            $record->charcount,
++            $record->hiddenuserid
+         );
+     }
+ 
+diff --git a/mod/forum/classes/local/managers/capability.php b/mod/forum/classes/local/managers/capability.php
+index b5304b1679b..a84da1befaf 100644
+--- a/mod/forum/classes/local/managers/capability.php
++++ b/mod/forum/classes/local/managers/capability.php
+@@ -553,6 +553,10 @@ class capability {
+             // You cannot reply privately to a post which is, itself, a private reply.
+             return false;
+         }
++        if ($post->is_anonymous()) {
++            // You cannot make a private reply to an anonymous post.
++            return false;
++        }
+ 
+         return has_capability('mod/forum:postprivatereply', $this->get_context(), $user);
+     }
+diff --git a/mod/forum/classes/post_form.php b/mod/forum/classes/post_form.php
+index 948468176fd..7d35f765569 100644
+--- a/mod/forum/classes/post_form.php
++++ b/mod/forum/classes/post_form.php
+@@ -120,6 +120,14 @@ class mod_forum_post_form extends moodleform {
+         $mform->setType('message', PARAM_RAW);
+         $mform->addRule('message', get_string('required'), 'required', null, 'client');
+ 
++        if ($forum->anonymous == FORUM_ANONYMOUS_ALLOWED && ($post->userid != $CFG->anonymous_userid) && empty($post->id)) {
++            $mform->addElement('checkbox', 'anonymous', get_string('forum:anonymouspost', 'local_lae'));
++        } else if ($forum->anonymous == FORUM_ANONYMOUS_ALWAYS && ($post->userid != $CFG->anonymous_userid) && empty($post->id)) {
++            $mform->addElement('checkbox', 'anonymous', get_string('forum:anonymouspost', 'local_lae'), null, array('disabled' => 1));
++            $mform->setDefault('anonymous', true);
++            $mform->freeze('anonymous');
++        }
++
+         if (!$inpagereply) {
+             $manageactivities = has_capability('moodle/course:manageactivities', $coursecontext);
+ 
+@@ -319,6 +327,9 @@ class mod_forum_post_form extends moodleform {
+ 
+         $mform->addElement('hidden', 'reply');
+         $mform->setType('reply', PARAM_INT);
++
++        $mform->addElement('hidden', 'hiddenuserid');
++        $mform->setType('hiddenuserid', PARAM_INT);
+     }
+ 
+     /**
+diff --git a/mod/forum/externallib.php b/mod/forum/externallib.php
+index 63021216813..6e1607c3c9a 100644
+--- a/mod/forum/externallib.php
++++ b/mod/forum/externallib.php
+@@ -156,6 +156,7 @@ class mod_forum_external extends external_api {
+                     'numdiscussions' => new external_value(PARAM_INT, 'Number of discussions in the forum', VALUE_OPTIONAL),
+                     'cancreatediscussions' => new external_value(PARAM_BOOL, 'If the user can create discussions', VALUE_OPTIONAL),
+                     'lockdiscussionafter' => new external_value(PARAM_INT, 'After what period a discussion is locked', VALUE_OPTIONAL),
++                    'anonymous' => new external_value(PARAM_INT, 'Allow anonymity'),
+                     'istracked' => new external_value(PARAM_BOOL, 'If the user is tracking the forum', VALUE_OPTIONAL),
+                     'unreadpostscount' => new external_value(PARAM_INT, 'The number of unread posts for tracked forums',
+                         VALUE_OPTIONAL),
+@@ -1280,7 +1281,8 @@ class mod_forum_external extends external_api {
+             'private'             => false,
+             'inlineattachmentsid' => 0,
+             'attachmentsid' => null,
+-            'topreferredformat'   => false
++            'topreferredformat'   => false,
++            'anonymous'           => false
+         );
+         foreach ($params['options'] as $option) {
+             $name = trim($option['name']);
+@@ -1304,6 +1306,9 @@ class mod_forum_external extends external_api {
+                 case 'topreferredformat':
+                     $value = clean_param($option['value'], PARAM_BOOL);
+                     break;
++                case 'anonymous':
++                    $value = clean_param($option['value'], PARAM_BOOL);
++                    break;
+                 default:
+                     throw new moodle_exception('errorinvalidparam', 'webservice', '', $name);
+             }
+@@ -1339,6 +1344,7 @@ class mod_forum_external extends external_api {
+         $post->itemid = $options['inlineattachmentsid'];
+         $post->attachments = $options['attachmentsid'];
+         $post->isprivatereply = $options['private'];
++        $post->anonymous = $options['anonymous'];
+         $post->deleted = 0;
+         $fakemform = $post->attachments;
+         if ($postid = forum_add_new_post($post, $fakemform)) {
+diff --git a/mod/forum/lang/en/forum.php b/mod/forum/lang/en/forum.php
+index b6cd6035895..3276095c5d5 100644
+--- a/mod/forum/lang/en/forum.php
++++ b/mod/forum/lang/en/forum.php
+@@ -40,6 +40,7 @@ $string['allsubscribe'] = 'Subscribe to all forums';
+ $string['allunsubscribe'] = 'Unsubscribe from all forums';
+ $string['allusers'] = 'All users';
+ $string['alreadyfirstpost'] = 'This is already the first post in the discussion';
++$string['anonymousreply'] = 'Reply anonymously';
+ $string['anyfile'] = 'Any file';
+ $string['areaattachment'] = 'Attachments';
+ $string['areapost'] = 'Messages';
+diff --git a/mod/forum/lib.php b/mod/forum/lib.php
+index 25aa2438ca2..79076db56bd 100644
+--- a/mod/forum/lib.php
++++ b/mod/forum/lib.php
+@@ -64,6 +64,10 @@ if (!defined('FORUM_CRON_USER_CACHE')) {
+     define('FORUM_CRON_USER_CACHE', 5000);
+ }
+ 
++define('FORUM_ANONYMOUS_NEVER', 0);
++define('FORUM_ANONYMOUS_ALWAYS', 1);
++define('FORUM_ANONYMOUS_ALLOWED', 2);
++
+ /**
+  * FORUM_POSTS_ALL_USER_GROUPS - All the posts in groups where the user is enrolled.
+  */
+@@ -651,7 +655,7 @@ function forum_print_recent_activity($course, $viewfullnames, $timestart) {
+                                               f.scale, f.grade_forum, f.maxbytes, f.maxattachments, f.forcesubscribe,
+                                               f.trackingtype, f.rsstype, f.rssarticles, f.timemodified, f.warnafter, f.blockafter,
+                                               f.blockperiod, f.completiondiscussions, f.completionreplies, f.completionposts,
+-                                              f.displaywordcount, f.lockdiscussionafter, f.grade_forum_notify,
++                                              f.displaywordcount, f.lockdiscussionafter, f.grade_forum_notify, f.anonymous,
+                                               d.name AS discussionname, d.firstpost, d.userid AS discussionstarter,
+                                               d.assessed AS discussionassessed, d.timemodified, d.usermodified, d.forum, d.groupid,
+                                               d.timestart, d.timeend, d.pinned, d.timelocked,
+@@ -743,7 +747,8 @@ function forum_print_recent_activity($course, $viewfullnames, $timestart) {
+                 'completionposts' => $post->completionposts,
+                 'displaywordcount' => $post->displaywordcount,
+                 'lockdiscussionafter' => $post->lockdiscussionafter,
+-                'grade_forum_notify' => $post->grade_forum_notify
++                'grade_forum_notify' => $post->grade_forum_notify,
++                'anonymous' => $post->anonymous
+             ];
+             // Build the forum entity from the factory.
+             $forumentity = $entityfactory->get_forum_from_stdclass($forumrecord, $context, $coursemodule, $course);
+@@ -3106,6 +3111,12 @@ function forum_add_new_post($post, $mform, $unused = null) {
+         $post->mailnow    = 0;
+     }
+ 
++    if((isset($post->anonymous) && $post->anonymous) || ($forum->anonymous == FORUM_ANONYMOUS_ALWAYS)) {
++        $post = forum_scrub_userid($post);
++    } else {
++        $post->hiddenuserid = 0;
++    }
++
+     \mod_forum\local\entities\post::add_message_counts($post);
+     $post->id = $DB->insert_record("forum_posts", $post);
+     $post->message = file_save_draft_area_files($post->itemid, $context->id, 'mod_forum', 'post', $post->id,
+@@ -3279,6 +3290,10 @@ function forum_add_discussion($discussion, $mform=null, $unused=null, $userid=nu
+     $post->course        = $forum->course; // speedup
+     $post->mailnow       = $discussion->mailnow;
+ 
++    if ((isset($discussion->anonymous) && $discussion->anonymous) || ($forum->anonymous == FORUM_ANONYMOUS_ALWAYS)) {
++        $post = forum_scrub_userid($post);
++    }
++
+     \mod_forum\local\entities\post::add_message_counts($post);
+     $post->id = $DB->insert_record("forum_posts", $post);
+ 
+@@ -3295,7 +3310,7 @@ function forum_add_discussion($discussion, $mform=null, $unused=null, $userid=nu
+     $discussion->firstpost    = $post->id;
+     $discussion->timemodified = $timenow;
+     $discussion->usermodified = $post->userid;
+-    $discussion->userid       = $userid;
++    $discussion->userid       = $post->userid;
+     $discussion->assessed     = 0;
+ 
+     $post->discussion = $DB->insert_record("forum_discussions", $discussion);
+@@ -6222,6 +6237,17 @@ function forum_get_user_digest_options($user = null) {
+     return $digestoptions;
+ }
+ 
++/**
++ * Anonymizes the forum userid (if necessary)
++ */
++function forum_scrub_userid($post) {
++    global $CFG;
++
++    $post->hiddenuserid = $post->userid;
++    $post->userid = $CFG->anonymous_userid;
++    return $post;
++}
++
+ /**
+  * Determine the current context if one was not already specified.
+  *
+diff --git a/mod/forum/mod_form.php b/mod/forum/mod_form.php
+index 65cd77a75ea..863fd0d28cd 100644
+--- a/mod/forum/mod_form.php
++++ b/mod/forum/mod_form.php
+@@ -56,6 +56,15 @@ class mod_forum_mod_form extends moodleform_mod {
+         $mform->addHelpButton('type', 'forumtype', 'forum');
+         $mform->setDefault('type', 'general');
+ 
++        if(isset($CFG->forum_enableanonymousposts) && $CFG->forum_enableanonymousposts) {
++            $options = array();
++            $options[FORUM_ANONYMOUS_NEVER] = get_string('forum:anonno', 'local_lae');
++            $options[FORUM_ANONYMOUS_ALWAYS] = get_string('forum:anonyes', 'local_lae');
++            $options[FORUM_ANONYMOUS_ALLOWED] = get_string('forum:anonoptional', 'local_lae');
++            $mform->addElement('select','anonymous',get_string('forum:allowanonymous', 'local_lae'), $options);
++            $mform->addHelpButton('anonymous', 'forum:allowanonymous', 'local_lae');
++        }
++
+         $mform->addElement('header', 'availability', get_string('availability', 'forum'));
+ 
+         $name = get_string('duedate', 'forum');
+diff --git a/mod/forum/post.php b/mod/forum/post.php
+index 7d9e3abc288..7da66af9e34 100644
+--- a/mod/forum/post.php
++++ b/mod/forum/post.php
+@@ -331,7 +331,7 @@ if (!empty($forum)) {
+             print_error('maxtimehaspassed', 'forum', '', format_time($CFG->maxeditingtime));
+         }
+     }
+-    if (($post->userid <> $USER->id) and
++    if ((($post->userid <> $USER->id) && ($post->hiddenuserid <> $USER->id)) and
+         !has_capability('mod/forum:editanypost', $modcontext)) {
+         print_error('cannoteditposts', 'forum');
+     }
+@@ -684,7 +684,8 @@ file_prepare_draft_area($draftitemid, $modcontext->id, 'mod_forum', 'attachment'
+ 
+ // Load data into form NOW!
+ 
+-if ($USER->id != $post->userid) {   // Not the original author, so add a message to the end.
++
++if (($USER->id != $post->userid) && ($USER->id != $post->hiddenuserid)) {   // Not the original author, so add a message to the end.
+     $data = new stdClass();
+     $data->date = userdate($post->created);
+     if ($post->messageformat == FORMAT_HTML) {
+@@ -729,6 +730,7 @@ $mformpost->set_data(
+             'itemid' => $draftideditor
+         ),
+         'discussionsubscribe' => $discussionsubscribe,
++        'anonymous' => $forum->anonymous == FORUM_ANONYMOUS_ALWAYS ? 1 : 0,
+         'mailnow' => !empty($post->mailnow),
+         'userid' => $post->userid,
+         'parent' => $post->parent,
+diff --git a/mod/forum/settings.php b/mod/forum/settings.php
+index bbe59ca3d27..158f588b8f0 100644
+--- a/mod/forum/settings.php
++++ b/mod/forum/settings.php
+@@ -136,7 +136,9 @@ if ($ADMIN->fulltree) {
+         $settings->hide_if('forum_rssarticles', 'forum_enablerssfeeds', 'neq', '1');
+     }
+ 
++    $settings->add(new admin_setting_configcheckbox('forum_enableanonymousposts', get_string('forum:anonymouspost', 'local_lae'),
++                       get_string('forum:configenableanonymouspost', 'local_lae'), 0));
++
+     $settings->add(new admin_setting_configcheckbox('forum_enabletimedposts', get_string('timedposts', 'forum'),
+                        get_string('configenabletimedposts', 'forum'), 1));
+ }
+-
+diff --git a/mod/forum/templates/forum_discussion_post.mustache b/mod/forum/templates/forum_discussion_post.mustache
+index 868c1e8c9de..e86afbc0465 100644
+--- a/mod/forum/templates/forum_discussion_post.mustache
++++ b/mod/forum/templates/forum_discussion_post.mustache
+@@ -282,6 +282,8 @@
+                                                         data-post-id="{{id}}"
+                                                         data-action="collapsible-link"
+                                                         data-can-reply-privately="{{canreplyprivately}}"
++                                                        data-can-reply-anonymously="{{canreplyanonymously}}"
++                                                        data-must-reply-anonymously="{{mustreplyanonymously}}"
+                                                         title="{{#str}} reply, mod_forum {{/str}}"
+                                                         role="menuitem"
+                                                     >
+@@ -297,6 +299,8 @@
+                                                             class="btn btn-link"
+                                                             data-post-id="{{id}}"
+                                                             data-can-reply-privately="{{canreplyprivately}}"
++                                                            data-can-reply-anonymously="{{canreplyanonymously}}"
++                                                            data-must-reply-anonymously="{{mustreplyanonymously}}"
+                                                             title="{{#str}} reply, mod_forum {{/str}}"
+                                                             role="menuitem"
+                                                         >
+diff --git a/mod/forum/templates/inpage_reply.mustache b/mod/forum/templates/inpage_reply.mustache
+index 0a6a2d3582f..b543c1e499d 100644
+--- a/mod/forum/templates/inpage_reply.mustache
++++ b/mod/forum/templates/inpage_reply.mustache
+@@ -59,6 +59,16 @@
+                     <label class="form-check-label" for="private-reply-checkbox-{{uniqid}}">{{#str}} privatereply, forum {{/str}}</label>
+                 </div>
+                 {{/canreplyprivately}}
++                {{#canreplyanonymously}}
++                <div class="form-check form-check-inline">
++                    <input
++                        {{#mustreplyanonymously}}
++                        disabled="disabled", checked="checked"
++                        {{/mustreplyanonymously}}
++                        type="checkbox" class="form-check-input" id="anonymous-reply-checkbox-{{uniqid}}" title="{{#str}} anonymousreply, forum {{/str}}" name="anonymousreply"/>
++                    <label class="form-check-label" for="anonymous-reply-checkbox-{{uniqid}}">{{#str}} anonymousreply, forum {{/str}}</label>
++                </div>
++                {{/canreplyanonymously}}
+                 <button data-action="forum-advanced-reply" class="btn btn-link float-right" type="submit">
+                     {{#str}} advanced, core {{/str}}
+                 </button>
+diff --git a/mod/forum/tests/entities_discussion_summary_test.php b/mod/forum/tests/entities_discussion_summary_test.php
+index adc051ae9c4..c57656a9c42 100644
+--- a/mod/forum/tests/entities_discussion_summary_test.php
++++ b/mod/forum/tests/entities_discussion_summary_test.php
+@@ -95,7 +95,8 @@ class mod_forum_entities_discussion_summary_testcase extends advanced_testcase {
+             false,
+             false,
+             null,
+-            null
++            null,
++            0
+         );
+ 
+         $discussionsummary = new discussion_summary_entity($discussion, $firstpost, $firstauthor, $lastauthor);
+diff --git a/mod/forum/tests/entities_discussion_test.php b/mod/forum/tests/entities_discussion_test.php
+index b4779010fc5..ee22bd0a326 100644
+--- a/mod/forum/tests/entities_discussion_test.php
++++ b/mod/forum/tests/entities_discussion_test.php
+@@ -77,7 +77,8 @@ class mod_forum_entities_discussion_testcase extends advanced_testcase {
+             false,
+             false,
+             null,
+-            null
++            null,
++            0
+         );
+         $notfirstpost = new post_entity(
+             1,
+@@ -97,7 +98,8 @@ class mod_forum_entities_discussion_testcase extends advanced_testcase {
+             false,
+             false,
+             null,
+-            null
++            null,
++            0
+         );
+ 
+         $this->assertEquals(1, $discussion->get_id());
+diff --git a/mod/forum/tests/entities_forum_test.php b/mod/forum/tests/entities_forum_test.php
+index aaf9f7b5ea4..13a7f7d6c24 100644
+--- a/mod/forum/tests/entities_forum_test.php
++++ b/mod/forum/tests/entities_forum_test.php
+@@ -96,6 +96,8 @@ class mod_forum_entities_forum_testcase extends advanced_testcase {
+         $lockdiscussionafter = 0;
+         $duedate = 0;
+         $cutoffdate = 0;
++        $anonymous = FORUM_ANONYMOUS_NEVER;
++
+         $sendnotification = false;
+         $forum = new forum_entity(
+             $context,
+@@ -130,7 +132,8 @@ class mod_forum_entities_forum_testcase extends advanced_testcase {
+             $displaywordcount,
+             $lockdiscussionafter,
+             $duedate,
+-            $cutoffdate
++            $cutoffdate,
++            $anonymous
+         );
+ 
+         $this->assertEquals($context, $forum->get_context());
+diff --git a/mod/forum/tests/entities_post_read_receipt_collection_test.php b/mod/forum/tests/entities_post_read_receipt_collection_test.php
+index f1dc18927ee..c2c5f1051ad 100644
+--- a/mod/forum/tests/entities_post_read_receipt_collection_test.php
++++ b/mod/forum/tests/entities_post_read_receipt_collection_test.php
+@@ -60,7 +60,8 @@ class mod_forum_entities_post_read_receipt_collection_testcase extends advanced_
+             false,
+             false,
+             null,
+-            null
++            null,
++            0
+         );
+         $post = new post_entity(
+             1,
+@@ -80,7 +81,8 @@ class mod_forum_entities_post_read_receipt_collection_testcase extends advanced_
+             false,
+             false,
+             null,
+-            null
++            null,
++            0
+         );
+         $collection = new collection_entity([
+             (object) [
+diff --git a/mod/forum/tests/entities_post_test.php b/mod/forum/tests/entities_post_test.php
+index 01ecf6ee4ea..947871f9868 100644
+--- a/mod/forum/tests/entities_post_test.php
++++ b/mod/forum/tests/entities_post_test.php
+@@ -61,7 +61,8 @@ class mod_forum_entities_post_testcase extends advanced_testcase {
+             false,
+             false,
+             null,
+-            null
++            null,
++            0
+         );
+ 
+         $this->assertEquals(4, $post->get_id());
+diff --git a/mod/forum/tests/generator/lib.php b/mod/forum/tests/generator/lib.php
+index bb071a02477..940c388bba2 100644
+--- a/mod/forum/tests/generator/lib.php
++++ b/mod/forum/tests/generator/lib.php
+@@ -315,6 +315,10 @@ class mod_forum_generator extends testing_module_generator {
+             $record['privatereplyto'] = 0;
+         }
+ 
++        if (!isset($record['hiddenuserid'])) {
++            $record['hiddenuserid'] = 0;
++        }
++
+         $record = (object) $record;
+         \mod_forum\local\entities\post::add_message_counts($record);
+ 
+diff --git a/mod/resource/backup/moodle1/lib.php b/mod/resource/backup/moodle1/lib.php
+index 2c9498dd2d3..d5d3b6f5a57 100644
+--- a/mod/resource/backup/moodle1/lib.php
++++ b/mod/resource/backup/moodle1/lib.php
+@@ -275,6 +275,9 @@ class moodle1_mod_resource_handler extends moodle1_mod_handler {
+                     $name = null;
+                 }
+                 break;
++            case 'fileupload':
++                $name = null;
++                break;
+             default:
+                 throw new moodle1_convert_exception('unknown_resource_successor', $type);
+         }
+diff --git a/mod/resource/lib.php b/mod/resource/lib.php
+index d9de5024204..8d3a5944c7d 100644
+--- a/mod/resource/lib.php
++++ b/mod/resource/lib.php
+@@ -494,7 +494,10 @@ function resource_dndupload_handle($uploadinfo) {
+ 
+     // Set the display options to the site defaults.
+     $config = get_config('resource');
+-    $data->display = $config->display;
++    $data->display = $uploadinfo->course->filedisplaydefault;
++    if (is_null($data->display)) {
++        $data->display = $config->display;
++    }
+     $data->popupheight = $config->popupheight;
+     $data->popupwidth = $config->popupwidth;
+     $data->printintro = $config->printintro;
+diff --git a/mod/resource/mod_form.php b/mod/resource/mod_form.php
+index 0f1addfc00c..4ece9185b9e 100644
+--- a/mod/resource/mod_form.php
++++ b/mod/resource/mod_form.php
+@@ -31,7 +31,7 @@ require_once($CFG->libdir.'/filelib.php');
+ 
+ class mod_resource_mod_form extends moodleform_mod {
+     function definition() {
+-        global $CFG, $DB;
++        global $CFG, $DB, $COURSE;
+         $mform =& $this->_form;
+ 
+         $config = get_config('resource');
+@@ -92,6 +92,7 @@ class mod_resource_mod_form extends moodleform_mod {
+         } else {
+             $mform->addElement('select', 'display', get_string('displayselect', 'resource'), $options);
+             $mform->setDefault('display', $config->display);
++            $mform->setDefault('display', $COURSE->filedisplaydefault);
+             $mform->addHelpButton('display', 'displayselect', 'resource');
+         }
+ 
+diff --git a/tag/tests/taglib_test.php b/tag/tests/taglib_test.php
+index bad9b14c242..f03f2315475 100644
+--- a/tag/tests/taglib_test.php
++++ b/tag/tests/taglib_test.php
+@@ -215,7 +215,7 @@ class core_tag_taglib_testcase extends advanced_testcase {
+         $usertags = $DB->count_records('tag_instance', array('itemtype' => 'user'));
+         $usercount = $DB->count_records('user', array('deleted' => 0));
+         // Remove admin and guest from the count.
+-        $this->assertEquals($usertags, ($usercount - 2));
++        $this->assertEquals($usertags, ($usercount - 3));
+ 
+         // Test clean up where a course has been removed.
+         // Delete the course. This also needs to be this way otherwise the tags are removed by using the proper function.
+diff --git a/user/classes/external/user_summary_exporter.php b/user/classes/external/user_summary_exporter.php
+index f8f21dc767f..4a5514d8876 100644
+--- a/user/classes/external/user_summary_exporter.php
++++ b/user/classes/external/user_summary_exporter.php
+@@ -48,7 +48,13 @@ class user_summary_exporter extends \core\external\exporter {
+ 
+         $profileurl = (new moodle_url('/user/profile.php', array('id' => $this->data->id)))->out(false);
+ 
++// ou-specific begins #407 (until 3.11)
++/*
+         $identityfields = array_flip(explode(',', $CFG->showuseridentity));
++*/
++        // TODO Does not support custom user profile fields (MDL-70456).
++        $identityfields = array_flip(\core_user\fields::get_identity_fields(null, false));
++// ou-specific ends #407 (until 3.11)
+         $data = $this->data;
+         foreach ($identityfields as $field => $index) {
+             if (!empty($data->$field)) {
+diff --git a/user/classes/fields.php b/user/classes/fields.php
+new file mode 100644
+index 00000000000..7395652cfea
+--- /dev/null
++++ b/user/classes/fields.php
+@@ -0,0 +1,645 @@
++<?php
++// This file is part of Moodle - http://moodle.org/
++//
++// Moodle is free software: you can redistribute it and/or modify
++// it under the terms of the GNU General Public License as published by
++// the Free Software Foundation, either version 3 of the License, or
++// (at your option) any later version.
++//
++// Moodle is distributed in the hope that it will be useful,
++// but WITHOUT ANY WARRANTY; without even the implied warranty of
++// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++// GNU General Public License for more details.
++//
++// You should have received a copy of the GNU General Public License
++// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
++
++namespace core_user;
++
++// ou-specific file #407 (until Moodle 3.11)
++/**
++ * Class for retrieving information about user fields that are needed for displaying user identity.
++ *
++ * @package core_user
++ */
++class fields {
++    /** @var string Prefix used to identify custom profile fields */
++    const PROFILE_FIELD_PREFIX = 'profile_field_';
++    /** @var string Regular expression used to match a field name against the prefix */
++    const PROFILE_FIELD_REGEX = '~^' . self::PROFILE_FIELD_PREFIX . '(.*)$~';
++
++    /** @var int All fields required to display user's identity, based on server configuration */
++    const PURPOSE_IDENTITY = 0;
++    /** @var int All fields required to display a user picture */
++    const PURPOSE_USERPIC = 1;
++    /** @var int All fields required for somebody's name */
++    const PURPOSE_NAME = 2;
++    /** @var int Field required by custom include list */
++    const CUSTOM_INCLUDE = 3;
++
++    /** @var \context|null Context in use */
++    protected $context;
++
++    /** @var bool True to allow custom user fields */
++    protected $allowcustom;
++
++    /** @var bool[] Array of purposes (from PURPOSE_xx to true/false) */
++    protected $purposes;
++
++    /** @var string[] List of extra fields to include */
++    protected $include;
++
++    /** @var string[] List of fields to exclude */
++    protected $exclude;
++
++    /** @var int Unique identifier for different queries generated in same request */
++    protected static $uniqueidentifier = 1;
++
++    /** @var array|null Associative array from field => array of purposes it was used for => true */
++    protected $fields = null;
++
++    /**
++     * Protected constructor - use one of the for_xx methods to create an object.
++     *
++     * @param int $purpose Initial purpose for object or -1 for none
++     */
++    protected function __construct(int $purpose = -1) {
++        $this->purposes = [
++            self::PURPOSE_IDENTITY => false,
++            self::PURPOSE_USERPIC => false,
++            self::PURPOSE_NAME => false,
++        ];
++        if ($purpose != -1) {
++            $this->purposes[$purpose] = true;
++        }
++        $this->include = [];
++        $this->exclude = [];
++        $this->context = null;
++        $this->allowcustom = true;
++    }
++
++    /**
++     * Constructs an empty user fields object to get arbitrary user fields.
++     *
++     * You can add fields to retrieve with the including() function.
++     *
++     * @return fields User fields object ready for use
++     */
++    public static function empty(): fields {
++        return new fields();
++    }
++
++    /**
++     * Constructs a user fields object to get identity information for display.
++     *
++     * The function does all the required capability checks to see if the current user is allowed
++     * to see them in the specified context. You can pass context null to get all the fields without
++     * checking permissions.
++     *
++     * If the code can only handle fields in the main user table, and not custom profile fields,
++     * then set $allowcustom to false.
++     *
++     * Note: After constructing the object you can use the ->with_xx, ->including, and ->excluding
++     * functions to control the required fields in more detail. For example:
++     *
++     * $fields = fields::for_identity($context)->with_userpic()->excluding('email');
++     *
++     * @param \context|null $context Context; if supplied, includes only fields the current user should see
++     * @param bool $allowcustom If true, custom profile fields may be included
++     * @return fields User fields object ready for use
++     */
++    public static function for_identity(?\context $context, bool $allowcustom = true): fields {
++        $fields = new fields(self::PURPOSE_IDENTITY);
++        $fields->context = $context;
++        $fields->allowcustom = $allowcustom;
++        return $fields;
++    }
++
++    /**
++     * Constructs a user fields object to get information required for displaying a user picture.
++     *
++     * Note: After constructing the object you can use the ->with_xx, ->including, and ->excluding
++     * functions to control the required fields in more detail. For example:
++     *
++     * $fields = fields::for_userpic()->with_name()->excluding('email');
++     *
++     * @return fields User fields object ready for use
++     */
++    public static function for_userpic(): fields {
++        return new fields(self::PURPOSE_USERPIC);
++    }
++
++    /**
++     * Constructs a user fields object to get information required for displaying a user full name.
++     *
++     * Note: After constructing the object you can use the ->with_xx, ->including, and ->excluding
++     * functions to control the required fields in more detail. For example:
++     *
++     * $fields = fields::for_name()->with_userpic()->excluding('email');
++     *
++     * @return fields User fields object ready for use
++     */
++    public static function for_name(): fields {
++        return new fields(self::PURPOSE_NAME);
++    }
++
++    /**
++     * On an existing fields object, adds the fields required for displaying user pictures.
++     *
++     * @return $this Same object for chaining function calls
++     */
++    public function with_userpic(): fields {
++        $this->purposes[self::PURPOSE_USERPIC] = true;
++        return $this;
++    }
++
++    /**
++     * On an existing fields object, adds the fields required for displaying user full names.
++     *
++     * @return $this Same object for chaining function calls
++     */
++    public function with_name(): fields {
++        $this->purposes[self::PURPOSE_NAME] = true;
++        return $this;
++    }
++
++    /**
++     * On an existing fields object, adds the fields required for displaying user identity.
++     *
++     * The function does all the required capability checks to see if the current user is allowed
++     * to see them in the specified context. You can pass context null to get all the fields without
++     * checking permissions.
++     *
++     * If the code can only handle fields in the main user table, and not custom profile fields,
++     * then set $allowcustom to false.
++     *
++     * @param \context|null Context; if supplied, includes only fields the current user should see
++     * @param bool $allowcustom If true, custom profile fields may be included
++     * @return $this Same object for chaining function calls
++     */
++    public function with_identity(?\context $context, bool $allowcustom = true): fields {
++        $this->context = $context;
++        $this->allowcustom = $allowcustom;
++        $this->purposes[self::PURPOSE_IDENTITY] = true;
++        return $this;
++    }
++
++    /**
++     * On an existing fields object, adds extra fields to be retrieved. You can specify either
++     * fields from the user table e.g. 'email', or profile fields e.g. 'profile_field_height'.
++     *
++     * @param string ...$include One or more fields to add
++     * @return $this Same object for chaining function calls
++     */
++    public function including(string ...$include): fields {
++        $this->include = array_merge($this->include, $include);
++        return $this;
++    }
++
++    /**
++     * On an existing fields object, excludes fields from retrieval. You can specify either
++     * fields from the user table e.g. 'email', or profile fields e.g. 'profile_field_height'.
++     *
++     * This is useful when constructing queries where your query already explicitly references
++     * certain fields, so you don't want to retrieve them twice.
++     *
++     * @param string ...$exclude One or more fields to exclude
++     * @return $this Same object for chaining function calls
++     */
++    public function excluding(...$exclude): fields {
++        $this->exclude = array_merge($this->exclude, $exclude);
++        return $this;
++    }
++
++    /**
++     * Gets an array of all fields that are required for the specified purposes, also taking
++     * into account the $includes and $excludes settings.
++     *
++     * The results may include basic field names (columns from the 'user' database table) and,
++     * unless turned off, custom profile field names in the format 'profile_field_myfield'.
++     *
++     * You should not rely on the order of fields, with one exception: if there is an id field
++     * it will be returned first. This is in case it is used with get_records calls.
++     *
++     * The $limitpurposes parameter is useful if you want to get a different set of fields than the
++     * purposes in the constructor. For example, if you want to get SQL for identity + user picture
++     * fields, but you then want to only get the identity fields as a list. (You can only specify
++     * purposes that were also passed to the constructor i.e. it can only be used to restrict the
++     * list, not add to it.)
++     *
++     * @param array $limitpurposes If specified, gets fields only for these purposes
++     * @return string[] Array of required fields
++     * @throws \coding_exception If any unknown purpose is listed
++     */
++    public function get_required_fields(array $limitpurposes = []): array {
++        // The first time this is called, actually work out the list. There is no way to 'un-cache'
++        // it, but these objects are designed to be short-lived so it doesn't need one.
++        if ($this->fields === null) {
++            // Add all the fields as array keys so that there are no duplicates.
++            $this->fields = [];
++            if ($this->purposes[self::PURPOSE_IDENTITY]) {
++                foreach (self::get_identity_fields($this->context, $this->allowcustom) as $field) {
++                    $this->fields[$field] = [self::PURPOSE_IDENTITY => true];
++                }
++            }
++            if ($this->purposes[self::PURPOSE_USERPIC]) {
++                foreach (self::get_picture_fields() as $field) {
++                    if (!array_key_exists($field, $this->fields)) {
++                        $this->fields[$field] = [];
++                    }
++                    $this->fields[$field][self::PURPOSE_USERPIC] = true;
++                }
++            }
++            if ($this->purposes[self::PURPOSE_NAME]) {
++                foreach (self::get_name_fields() as $field) {
++                    if (!array_key_exists($field, $this->fields)) {
++                        $this->fields[$field] = [];
++                    }
++                    $this->fields[$field][self::PURPOSE_NAME] = true;
++                }
++            }
++            foreach ($this->include as $field) {
++                if ($this->allowcustom || !preg_match(self::PROFILE_FIELD_REGEX, $field)) {
++                    if (!array_key_exists($field, $this->fields)) {
++                        $this->fields[$field] = [];
++                    }
++                    $this->fields[$field][self::CUSTOM_INCLUDE] = true;
++                }
++            }
++            foreach ($this->exclude as $field) {
++                unset($this->fields[$field]);
++            }
++
++            // If the id field is included, make sure it's first in the list.
++            if (array_key_exists('id', $this->fields)) {
++                $newfields = ['id' => $this->fields['id']];
++                foreach ($this->fields as $field => $purposes) {
++                    if ($field !== 'id') {
++                        $newfields[$field] = $purposes;
++                    }
++                }
++                $this->fields = $newfields;
++            }
++        }
++
++        if ($limitpurposes) {
++            // Check the value was legitimate.
++            foreach ($limitpurposes as $purpose) {
++                if ($purpose != self::CUSTOM_INCLUDE && empty($this->purposes[$purpose])) {
++                    throw new \coding_exception('$limitpurposes can only include purposes defined in object');
++                }
++            }
++
++            // Filter the fields to include only those matching the purposes.
++            $result = [];
++            foreach ($this->fields as $key => $purposes) {
++                foreach ($limitpurposes as $purpose) {
++                    if (array_key_exists($purpose, $purposes)) {
++                        $result[] = $key;
++                        break;
++                    }
++                }
++            }
++            return $result;
++        } else {
++            return array_keys($this->fields);
++        }
++    }
++
++    /**
++     * Gets fields required for user pictures.
++     *
++     * The results include only basic field names (columns from the 'user' database table).
++     *
++     * @return string[] All fields required for user pictures
++     */
++    public static function get_picture_fields(): array {
++        return ['id', 'picture', 'firstname', 'lastname', 'firstnamephonetic', 'lastnamephonetic',
++                'middlename', 'alternatename', 'imagealt', 'email'];
++    }
++
++    /**
++     * Gets fields required for user names.
++     *
++     * The results include only basic field names (columns from the 'user' database table).
++     *
++     * Fields are usually returned in a specific order, which the fullname() function depends on.
++     * If you specify 'true' to the $strangeorder flag, then the firstname and lastname fields
++     * are moved to the front; this is useful in a few places in existing code. New code should
++     * avoid requiring a particular order.
++     *
++     * @param bool $differentorder In a few places, a different order of fields is required
++     * @return string[] All fields used to display user names
++     */
++    public static function get_name_fields(bool $differentorder = false): array {
++        $fields = ['firstnamephonetic', 'lastnamephonetic', 'middlename', 'alternatename',
++                'firstname', 'lastname'];
++        if ($differentorder) {
++            return array_merge(array_slice($fields, -2), array_slice($fields, 0, -2));
++        } else {
++            return $fields;
++        }
++    }
++
++    /**
++     * Gets all fields required for user identity. These fields should be included in tables
++     * showing lists of users (in addition to the user's name which is included as standard).
++     *
++     * The results include basic field names (columns from the 'user' database table) and, unless
++     * turned off, custom profile field names in the format 'profile_field_myfield'.
++     *
++     * This function does all the required capability checks to see if the current user is allowed
++     * to see them in the specified context. You can pass context null to get all the fields
++     * without checking permissions.
++     *
++     * @param \context|null $context Context; if not supplied, all fields will be included without checks
++     * @param bool $allowcustom If true, custom profile fields will be included
++     * @return string[] Array of required fields
++     * @throws \coding_exception
++     */
++    public static function get_identity_fields(?\context $context, bool $allowcustom = true): array {
++        global $CFG;
++
++        // Only users with permission get the extra fields.
++        if ($context && !has_capability('moodle/site:viewuseridentity', $context)) {
++            return [];
++        }
++
++        // Split showuseridentity on comma (filter needed in case the showuseridentity is empty).
++        $extra = array_filter(explode(',', $CFG->showuseridentity));
++
++        // If there are any custom fields, remove them if necessary (either if allowcustom is false,
++        // or if the user doesn't have access to see them).
++        foreach ($extra as $key => $field) {
++            if (preg_match(self::PROFILE_FIELD_REGEX, $field, $matches)) {
++                if ($allowcustom) {
++                    require_once($CFG->dirroot . '/user/profile/lib.php');
++                    $fieldinfo = profile_get_custom_field_data_by_shortname($matches[1]);
++                    switch ($fieldinfo['visible']) {
++                        case PROFILE_VISIBLE_NONE:
++                        case PROFILE_VISIBLE_PRIVATE:
++                            $allowed = !$context || has_capability('moodle/user:viewalldetails', $context);
++                            break;
++                        case PROFILE_VISIBLE_ALL:
++                            $allowed = true;
++                            break;
++                    }
++                } else {
++                    $allowed = false;
++                }
++                if (!$allowed) {
++                    unset($extra[$key]);
++                }
++            }
++        }
++
++        // For standard user fields, access is controlled by the hiddenuserfields option and
++        // some different capabilities. Check and remove these if the user can't access them.
++        $hiddenfields = array_filter(explode(',', $CFG->hiddenuserfields));
++        $hiddenidentifiers = array_intersect($extra, $hiddenfields);
++
++        if ($hiddenidentifiers) {
++            if (!$context) {
++                $canviewhiddenuserfields = true;
++            } else if ($context->get_course_context(false)) {
++                // We are somewhere inside a course.
++                $canviewhiddenuserfields = has_capability('moodle/course:viewhiddenuserfields', $context);
++            } else {
++                // We are not inside a course.
++                $canviewhiddenuserfields = has_capability('moodle/user:viewhiddendetails', $context);
++            }
++
++            if (!$canviewhiddenuserfields) {
++                // Remove hidden identifiers from the list.
++                $extra = array_diff($extra, $hiddenidentifiers);
++            }
++        }
++
++        // Re-index the entries and return.
++        $extra = array_values($extra);
++        return $extra;
++    }
++
++    /**
++     * Gets SQL that can be used in a query to get the necessary fields.
++     *
++     * The result of this function is an object with fields 'selects', 'joins', 'params', and
++     * 'mappings'.
++     *
++     * If not empty, the list of selects will begin with a comma and the list of joins will begin
++     * and end with a space. You can include the result in your existing query like this:
++     *
++     * SELECT (your existing fields)
++     *        $selects
++     *   FROM {user} u
++     *   JOIN (your existing joins)
++     *        $joins
++     *
++     * When there are no custom fields then the 'joins' result will always be an empty string, and
++     * 'params' will be an empty array.
++     *
++     * The $fieldmappings value is often not needed. It is an associative array from each field
++     * name to an SQL expression for the value of that field, e.g.:
++     *   'profile_field_frog' => 'uf1d_3.data'
++     *   'city' => 'u.city'
++     * This is helpful if you want to use the profile fields in a WHERE clause, becuase you can't
++     * refer to the aliases used in the SELECT list there.
++     *
++     * The leading comma is included because this makes it work in the pattern above even if there
++     * are no fields from the get_sql() data (which can happen if doing identity fields and none
++     * are selected). If you want the result without a leading comma, set $leadingcomma to false.
++     *
++     * If the 'id' field is included then it will always be first in the list. Otherwise, you
++     * should not rely on the field order.
++     *
++     * For identity fields, the function does all the required capability checks to see if the
++     * current user is allowed to see them in the specified context. You can pass context null
++     * to get all the fields without checking permissions.
++     *
++     * If your code for any reason cannot cope with custom fields then you can turn them off.
++     *
++     * You can have either named or ? params. If you use named params, they are of the form
++     * uf1s_2; the first number increments in each call using a static variable in this class and
++     * the second number refers to the field being queried. A similar pattern is used to make
++     * join aliases unique.
++     *
++     * If your query refers to the user table by an alias e.g. 'u' then specify this in the $alias
++     * parameter; otherwise it will use {user} (if there are any joins for custom profile fields)
++     * or simply refer to the field by name only (if there aren't).
++     *
++     * If you need to use a prefix on the field names (for example in case they might coincide with
++     * existing result columns from your query, or if you want a convenient way to split out all
++     * the user data into a separate object) then you can specify one here. For example, if you
++     * include name fields and the prefix is 'u_' then the results will include 'u_firstname'.
++     *
++     * If you don't want to prefix all the field names but only change the id field name, use
++     * the $renameid parameter. (When you use this parameter, it takes precedence over any prefix;
++     * the id field will not be prefixed, while all others will.)
++     *
++     * @param string $alias Optional (but recommended) alias for user table in query, e.g. 'u'
++     * @param bool $namedparams If true, uses named :parameters instead of indexed ? parameters
++     * @param string $prefix Optional prefix for all field names in result, e.g. 'u_'
++     * @param string $renameid Renames the 'id' field if specified, e.g. 'userid'
++     * @param bool $leadingcomma If true the 'selects' list will start with a comma
++     * @return \stdClass Object with necessary SQL components
++     */
++    public function get_sql(string $alias = '', bool $namedparams = false, string $prefix = '',
++            string $renameid = '', bool $leadingcomma = true): \stdClass {
++        global $DB;
++
++        $fields = $this->get_required_fields();
++
++        $selects = '';
++        $joins = '';
++        $params = [];
++        $mappings = [];
++
++        $unique = self::$uniqueidentifier++;
++        $fieldcount = 0;
++
++        if ($alias) {
++            $usertable = $alias . '.';
++        } else {
++            // If there is no alias, we still need to use {user} to identify the table when there
++            // are joins with other tables. When there are no customfields then there are no joins
++            // so we can refer to the fields by name alone.
++            $gotcustomfields = false;
++            foreach ($fields as $field) {
++                if (preg_match(self::PROFILE_FIELD_REGEX, $field, $matches)) {
++                    $gotcustomfields = true;
++                    break;
++                }
++            }
++            if ($gotcustomfields) {
++                $usertable = '{user}.';
++            } else {
++                $usertable = '';
++            }
++        }
++
++        foreach ($fields as $field) {
++            if (preg_match(self::PROFILE_FIELD_REGEX, $field, $matches)) {
++                // Custom profile field.
++                $shortname = $matches[1];
++
++                $fieldcount++;
++
++                $fieldalias = 'uf' . $unique . 'f_' . $fieldcount;
++                $dataalias = 'uf' . $unique . 'd_' . $fieldcount;
++                if ($namedparams) {
++                    $withoutcolon = 'uf' . $unique . 's' . $fieldcount;
++                    $placeholder = ':' . $withoutcolon;
++                    $params[$withoutcolon] = $shortname;
++                } else {
++                    $placeholder = '?';
++                    $params[] = $shortname;
++                }
++                $joins .= " JOIN {user_info_field} $fieldalias ON $fieldalias.shortname = $placeholder
++                       LEFT JOIN {user_info_data} $dataalias ON $dataalias.fieldid = $fieldalias.id
++                                 AND $dataalias.userid = {$usertable}id";
++                // For Oracle we need to convert the field into a usable format.
++                $fieldsql = $DB->sql_compare_text($dataalias . '.data', 255);
++                $selects .= ", $fieldsql AS $prefix$field";
++                $mappings[$field] = $fieldsql;
++            } else {
++                // Standard user table field.
++                $selects .= ", $usertable$field";
++                if ($field === 'id' && $renameid && $renameid !== 'id') {
++                    $selects .= " AS $renameid";
++                } else if ($prefix) {
++                    $selects .= " AS $prefix$field";
++                }
++                $mappings[$field] = "$usertable$field";
++            }
++        }
++
++        // Add a space to the end of the joins list; this means it can be appended directly into
++        // any existing query without worrying about whether the developer has remembered to add
++        // whitespace after it.
++        if ($joins) {
++            $joins .= ' ';
++        }
++
++        // Optionally remove the leading comma.
++        if (!$leadingcomma) {
++            $selects = ltrim($selects, ' ,');
++        }
++
++        return (object)['selects' => $selects, 'joins' => $joins, 'params' => $params,
++                'mappings' => $mappings];
++    }
++
++    /**
++     * Gets the display name of a given user field.
++     *
++     * Supports field names from the 'user' database table, and custom profile fields supplied in
++     * the format 'profile_field_xx'.
++     *
++     * @param string $field Field name in database
++     * @return string Field name for display to user
++     * @throws \coding_exception
++     */
++    public static function get_display_name(string $field): string {
++        global $CFG;
++
++        // Custom fields have special handling.
++        if (preg_match(self::PROFILE_FIELD_REGEX, $field, $matches)) {
++            require_once($CFG->dirroot . '/user/profile/lib.php');
++            $fieldinfo = profile_get_custom_field_data_by_shortname($matches[1]);
++            // Use format_string so it can be translated with multilang filter if necessary.
++            return format_string($fieldinfo['name']);
++        }
++
++        // Some fields have language strings which are not the same as field name.
++        switch ($field) {
++            case 'url' : {
++                return get_string('webpage');
++            }
++            case 'icq' : {
++                return get_string('icqnumber');
++            }
++            case 'skype' : {
++                return get_string('skypeid');
++            }
++            case 'aim' : {
++                return get_string('aimid');
++            }
++            case 'yahoo' : {
++                return get_string('yahooid');
++            }
++            case 'msn' : {
++                return get_string('msnid');
++            }
++            case 'picture' : {
++                return get_string('pictureofuser');
++            }
++        }
++        // Otherwise just use the same lang string.
++        return get_string($field);
++    }
++
++    /**
++     * Resets the unique identifier used to ensure that multiple SQL fragments generated in the
++     * same request will have different identifiers for parameters and table aliases.
++     *
++     * This is intended only for use in unit testing.
++     */
++    public static function reset_unique_identifier() {
++        self::$uniqueidentifier = 1;
++    }
++
++    /**
++     * Checks if a field name looks like a custom profile field i.e. it begins with profile_field_
++     * (does not check if that profile field actually exists).
++     *
++     * @param string $fieldname Field name
++     * @return string Empty string if not a profile field, or profile field name (without profile_field_)
++     */
++    public static function match_custom_field(string $fieldname): string {
++        if (preg_match(self::PROFILE_FIELD_REGEX, $fieldname, $matches)) {
++            return $matches[1];
++        } else {
++            return '';
++        }
++    }
++}
+diff --git a/user/classes/table/participants.php b/user/classes/table/participants.php
+index f03abed8d54..d23c3fa68df 100644
+--- a/user/classes/table/participants.php
++++ b/user/classes/table/participants.php
+@@ -141,9 +141,19 @@ class participants extends \table_sql implements dynamic_table {
+         $headers[] = get_string('fullname');
+         $columns[] = 'fullname';
+ 
++// ou-specific begins #407 (until 3.11)
++/*
+         $extrafields = get_extra_user_fields($this->context);
++*/
++        $extrafields = \core_user\fields::get_identity_fields($this->context);
++// ou-specific ends #407 (until 3.11)
+         foreach ($extrafields as $field) {
++// ou-specific begins #407 (until 3.11)
++/*
+             $headers[] = get_user_field_name($field);
++*/
++            $headers[] = \core_user\fields::get_display_name($field);
++// ou-specific ends #407 (until 3.11)
+             $columns[] = $field;
+         }
+ 
+diff --git a/user/classes/table/participants_search.php b/user/classes/table/participants_search.php
+index 79a7137f46c..8b3a74bd018 100644
+--- a/user/classes/table/participants_search.php
++++ b/user/classes/table/participants_search.php
+@@ -30,7 +30,12 @@ use core_table\local\filter\filterset;
+ use core_user;
+ use moodle_recordset;
+ use stdClass;
++// ou-specific begins #407 (until 3.11)
++/*
+ use user_picture;
++*/
++use core_user\fields;
++// ou-specific ends #407 (until 3.11)
+ 
+ defined('MOODLE_INTERNAL') || die;
+ 
+@@ -77,7 +82,12 @@ class participants_search {
+         $this->context = $context;
+         $this->filterset = $filterset;
+ 
++// ou-specific begins #407 (until 3.11)
++/*
+         $this->userfields = get_extra_user_fields($this->context);
++ */
++        $this->userfields = fields::get_identity_fields($this->context);
++// ou-specific ends #407 (until 3.11)
+     }
+ 
+     /**
+@@ -192,7 +202,20 @@ class participants_search {
+             'params' => $params,
+         ] = $this->get_enrolled_sql();
+ 
++// ou-specific begins #407 (until 3.11)
++/*
+         $userfieldssql = user_picture::fields('u', $this->userfields);
++*/
++        // Get the fields for all contexts because there is a special case later where it allows
++        // matches of fields you can't access if they are on your own account.
++        $userfields = fields::for_identity(null)->with_userpic();
++        ['selects' => $userfieldssql, 'joins' => $userfieldsjoin, 'params' => $userfieldsparams, 'mappings' => $mappings] =
++                (array)$userfields->get_sql('u', true);
++        if ($userfieldsjoin) {
++            $outerjoins[] = $userfieldsjoin;
++            $params = array_merge($params, $userfieldsparams);
++        }
++// ou-specific ends #407 (until 3.11)
+ 
+         // Include any compulsory enrolment SQL (eg capability related filtering that must be applied).
+         if (!empty($esqlforced)) {
+@@ -206,12 +229,22 @@ class participants_search {
+         }
+ 
+         if ($isfrontpage) {
++// ou-specific begins #407 (until 3.11)
++/*
+             $outerselect = "SELECT {$userfieldssql}, u.lastaccess";
++*/
++            $outerselect = "SELECT u.lastaccess $userfieldssql";
++// ou-specific ends #407 (until 3.11)
+             if ($accesssince) {
+                 $wheres[] = user_get_user_lastaccess_sql($accesssince, 'u', $matchaccesssince);
+             }
+         } else {
++// ou-specific begins #407 (until 3.11)
++/*
+             $outerselect = "SELECT {$userfieldssql}, COALESCE(ul.timeaccess, 0) AS lastaccess";
++*/
++            $outerselect = "SELECT COALESCE(ul.timeaccess, 0) AS lastaccess $userfieldssql";
++// ou-specific ends #407 (until 3.11)
+             // Not everybody has accessed the course yet.
+             $outerjoins[] = 'LEFT JOIN {user_lastaccess} ul ON (ul.userid = u.id AND ul.courseid = :courseid2)';
+             $params['courseid2'] = $this->course->id;
+@@ -254,7 +287,12 @@ class participants_search {
+             [
+                 'where' => $keywordswhere,
+                 'params' => $keywordsparams,
++// ou-specific begins #407 (until 3.11)
++/*
+             ] = $this->get_keywords_search_sql();
++*/
++            ] = $this->get_keywords_search_sql($mappings);
++// ou-specific ends #407 (until 3.11)
+ 
+             if (!empty($keywordswhere)) {
+                 $wheres[] = $keywordswhere;
+@@ -874,7 +912,12 @@ class participants_search {
+      *
+      * @return array SQL query data in the format ['where' => '', 'params' => []].
+      */
++// ou-specific begins #407 (until 3.11)
++/*
+     protected function get_keywords_search_sql(): array {
++*/
++    protected function get_keywords_search_sql(array $mappings): array {
++// ou-specific ends #407 (until 3.11)
+         global $CFG, $DB, $USER;
+ 
+         $keywords = [];
+@@ -962,6 +1005,8 @@ class participants_search {
+ 
+             $conditions[] = $idnumber;
+ 
++// ou-specific begins #407 (until 3.11)
++/*
+             if (!empty($CFG->showuseridentity)) {
+                 // Search all user identify fields.
+                 $extrasearchfields = explode(',', $CFG->showuseridentity);
+@@ -987,6 +1032,33 @@ class participants_search {
+                     $conditions[] = $condition;
+                 }
+             }
++*/
++            // Search all user identify fields.
++            $extrasearchfields = fields::get_identity_fields(null);
++            foreach ($extrasearchfields as $fieldindex => $extrasearchfield) {
++                if (in_array($extrasearchfield, ['email', 'idnumber', 'country'])) {
++                    // Already covered above. Search by country not supported.
++                    continue;
++                }
++                // The param must be short (max 32 characters) so don't include field name.
++                $param = $searchkey3 . '_ident' . $fieldindex;
++                $fieldsql = $mappings[$extrasearchfield];
++                $condition = $DB->sql_like($fieldsql, ':' . $param, false, false);
++                $params[$param] = "%$keyword%";
++
++                if ($notjoin) {
++                    $condition = "($fieldsql IS NOT NULL AND {$condition})";
++                }
++
++                if (!in_array($extrasearchfield, $this->userfields)) {
++                    // User cannot see this field, but allow match if their own account.
++                    $userid3 = 'userid' . $index . '3_ident' . $fieldindex;
++                    $condition = "(". $condition . " AND u.id = :$userid3)";
++                    $params[$userid3] = $USER->id;
++                }
++                $conditions[] = $condition;
++            }
++// ou-specific ends #407 (until 3.11)
+ 
+             // Search by middlename.
+             $middlename = $DB->sql_like('middlename', ':' . $searchkey4, false, false);
+diff --git a/user/profile/lib.php b/user/profile/lib.php
+index c82551f99c1..481671c1a6c 100644
+--- a/user/profile/lib.php
++++ b/user/profile/lib.php
+@@ -848,6 +848,38 @@ function profile_save_custom_fields($userid, $profilefields) {
+     }
+ }
+ 
++// ou-specific begins #407 (until 3.11)
++/**
++ * Gets basic data about custom profile fields. This is minimal data that is cached within the
++ * current request for all fields so that it can be used quickly.
++ *
++ * @param string $shortname Shortname of custom profile field
++ * @return array Array with id, name, and visible fields
++ */
++function profile_get_custom_field_data_by_shortname(string $shortname): array {
++    global $DB;
++
++    $cache = \cache::make_from_params(cache_store::MODE_REQUEST, 'core_profile', 'customfields',
++            [], ['simplekeys' => true, 'simpledata' => true]);
++    $data = $cache->get($shortname);
++    if (!$data) {
++        // If we don't have data, we get and cache it for all fields to avoid multiple DB requests.
++        $fields = $DB->get_records('user_info_field', null, '', 'id, shortname, name, visible');
++        foreach ($fields as $field) {
++            $cache->set($field->shortname, (array)$field);
++            if ($field->shortname === $shortname) {
++                $data = (array)$field;
++            }
++        }
++        if (!$data) {
++            throw new \coding_exception('Unknown custom field: ' . $shortname);
++        }
++    }
++
++    return $data;
++}
++
++// ou-specific ends #407 (until 3.11)
+ /**
+  * Trigger a user profile viewed event.
+  *

@@ -1,4 +1,4 @@
-@anon_forum @local_lae
+@local @local_lae
 Feature: Add an anonymous forum
   In order to create an anonymous forum
   As a teacher
