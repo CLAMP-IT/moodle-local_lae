@@ -21,7 +21,7 @@ Feature: Set a resource display preference at the course level
 
   @javascript
   Scenario Outline: Setting the default will cause future uploads to have the expected display type
-    Given I navigate to "Edit settings" node in "Course administration"
+    Given I navigate to "Edit settings" in current page administration
     And I expand all fieldsets
     And I set the following fields to these values:
       | filedisplaydefault | <displaytype> |

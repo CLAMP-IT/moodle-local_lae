@@ -34,5 +34,17 @@ function xmldb_local_lae_upgrade($oldversion) {
         upgrade_plugin_savepoint(true, 2014041600, 'local', 'lae');
     }
 
+    if ($oldversion < 2019062500) {
+        // Backfill hiddenuserid.
+        $sql = "UPDATE {forum_posts} SET hiddenuserid=0 WHERE hiddenuserid IS NULL";
+        $DB->execute($sql);
+
+        // Do not allow null values for hiddenuserid.
+        $table = new xmldb_table('forum_posts');
+        $field = new xmldb_field('hiddenuserid', XMLDB_TYPE_INTEGER, '10', XMLDB_UNSIGNED, XMLDB_NOTNULL, null, '0', 'mailnow');
+        $dbman->change_field_notnull($table, $field);
+        upgrade_plugin_savepoint(true, 2019062500, 'local', 'lae');
+    }
+
     return true;
 }

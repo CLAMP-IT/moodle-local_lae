@@ -35,7 +35,7 @@ function xmldb_local_lae_install() {
     }
     $table = new xmldb_table('forum_posts');
     $field = new xmldb_field('hiddenuserid');
-    $field->set_attributes(XMLDB_TYPE_INTEGER, '10', XMLDB_UNSIGNED, null, null, null, null, 'mailnow');
+    $field->set_attributes(XMLDB_TYPE_INTEGER, '10', XMLDB_UNSIGNED, XMLDB_NOTNULL, null, '0', 'mailnow');
     if (!$dbman->field_exists($table, $field)) {
         $dbman->add_field($table, $field);
     }
