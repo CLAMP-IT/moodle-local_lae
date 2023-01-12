@@ -18,14 +18,14 @@ Feature: Print Anonymous Forum Recent Activity
     And the following config values are set as admin:
       | forum_enableanonymousposts | 1 |
     And the following "activities" exist:
-      | activity | course | idnumber | name            | intro     | grade |
-      | forum    | C1     | f1       | Anonymous Forum | Anonymous | 10    |
+      | activity | course | section | idnumber | name            | intro     | grade |
+      | forum    | C1     | 1       | f1       | Anonymous Forum | Anonymous | 10    |
     Given I log in as "teacher1"
     And I am on "Course 1" course homepage
     And I turn editing mode on
     And I add the "Recent activity" block if not present
-    And I follow "Anonymous Forum"
-    And I follow "Add a new discussion topic"
+    And I am on the "Anonymous Forum" "forum activity" page
+    And I follow "Add discussion topic"
     And I set the field "subject" to "Post 1 subject"
     And I set the field "id_message" to "Body 1 content"
     And I press "Post to forum"
