@@ -1,5 +1,5 @@
 diff --git a/.github/workflows/push.yml b/.github/workflows/push.yml
-index 4af195a9538..a1fdea4fe8a 100644
+index eb074017b20..c80b2170aa0 100644
 --- a/.github/workflows/push.yml
 +++ b/.github/workflows/push.yml
 @@ -3,6 +3,7 @@ name: Core
@@ -11,7 +11,7 @@ index 4af195a9538..a1fdea4fe8a 100644
        - MOODLE_[0-9]+_STABLE
      tags-ignore:
 diff --git a/.travis.yml b/.travis.yml
-index b37473deb2d..e25ba74bb87 100644
+index ee38dddbbb0..ca1a44b64db 100644
 --- a/.travis.yml
 +++ b/.travis.yml
 @@ -17,9 +17,11 @@ services:
@@ -26,9 +26,9 @@ index b37473deb2d..e25ba74bb87 100644
        - postgresql-12
        - postgresql-client-12
  
-@@ -102,6 +104,13 @@ install:
-             sudo ln -s /mnt/ramdisk/postgresql /var/lib/postgresql
+@@ -104,6 +106,13 @@ install:
              sudo service postgresql start
+             sh -c 'until pg_isready -p $PGPORT; do echo "Waiting for the DB to be up..."; sleep 2; done'
          fi
 +    - >
 +        if [ "$TASK" = 'BEHAT' ];
@@ -40,7 +40,7 @@ index b37473deb2d..e25ba74bb87 100644
      - >
          if [ "$TASK" = 'PHPUNIT' ];
          then
-@@ -113,6 +122,10 @@ install:
+@@ -115,6 +124,10 @@ install:
              echo 'extension="redis.so"' > /tmp/redis.ini
              phpenv config-add /tmp/redis.ini
  
@@ -51,16 +51,7 @@ index b37473deb2d..e25ba74bb87 100644
              # Install composer dependencies.
              # We need --no-interaction in case we hit API limits for composer. This causes it to fall back to a standard clone.
              # Typically it should be able to use the Composer cache if any other job has already completed before we started here.
-@@ -127,6 +140,8 @@ install:
-         fi
- 
- before_script:
-+    # Disable IPv6
-+    - sudo sh -c 'echo 0 > /proc/sys/net/ipv6/conf/all/disable_ipv6'
-     - if [[ ${TRAVIS_PHP_VERSION:0:1} -gt 7 ]]; then pecl install xmlrpc-beta; fi
-     - echo 'max_input_vars=5000' >> ~/.phpenv/versions/$(phpenv version-name)/etc/conf.d/travis.ini
-     - phpenv config-rm xdebug.ini
-@@ -208,10 +223,36 @@ before_script:
+@@ -209,10 +222,36 @@ before_script:
          php admin/tool/phpunit/cli/init.php
        fi
  
@@ -98,7 +89,7 @@ index b37473deb2d..e25ba74bb87 100644
          npm install --no-spin -g grunt ;
        fi
  
-@@ -249,6 +290,14 @@ script:
+@@ -250,6 +289,14 @@ script:
          vendor/bin/phpunit --fail-on-risky --disallow-test-output --verbose;
        fi
  
@@ -115,11 +106,11 @@ index b37473deb2d..e25ba74bb87 100644
        then
 diff --git a/LAE_readme.md b/LAE_readme.md
 new file mode 100644
-index 00000000000..a6a0c8ccd08
+index 00000000000..d6024b045f0
 --- /dev/null
 +++ b/LAE_readme.md
 @@ -0,0 +1,89 @@
-+# [Moodle Liberal Arts Edition v4.0.4-LAE22.0.3]
++# [Moodle Liberal Arts Edition v4.1.3-LAE23.0.3]
 +
 +Welcome to the Moodle Liberal Arts Edition. The goal of the LAE is to provide a coherent package for modules, patches, and code developed (or improved) by the Collaborative Liberal Arts Moodle Project (CLAMP).
 +
@@ -137,7 +128,7 @@ index 00000000000..a6a0c8ccd08
 +
 +## Contents
 +
-+Moodle 4.0.4+LAE22.0.3 consists of the core Moodle 4.0.4 release plus a number of CLAMP-developed features and bug fixes.
++Moodle 4.1.3+LAE23.0.3 consists of the core Moodle 4.1.3 release plus a number of CLAMP-developed features and bug fixes.
 +
 +The following core features are included:
 +
@@ -183,15 +174,15 @@ index 00000000000..a6a0c8ccd08
 +* Download the tar and zip packages from the CLAMP web site: <http://www.clamp-it.org/code/>
 +* Download the current release branch from the CLAMP code repository:
 +
-+    git clone https://github.com/CLAMP-IT/moodle v4.0.4-LAE22.0.3
-+    git checkout -b v4.0.4-LAE22.0.3
++    git clone https://github.com/CLAMP-IT/moodle v4.1.3-LAE23.0.3
++    git checkout -b v4.1.3-LAE23.0.3
 +
-+By default this is the "Package" version which includes the contributed modules. If you just want the core version of the LAE checkout the v4.0.4-LAE22.0.3-base tag instead.
++By default this is the "Package" version which includes the contributed modules. If you just want the core version of the LAE checkout the v4.1.3-LAE23.0.3-base tag instead.
 +
 +CLAMP maintains two branches for each major version:
 +
-+* LAE\_400\_STABLE contains the core code only
-+* LAE\_400\_PACKAGE includes the contributed modules
++* LAE\_401\_STABLE contains the core code only
++* LAE\_401\_PACKAGE includes the contributed modules
 +
 +## Installing the LAE
 +
@@ -378,10 +369,10 @@ index 0c6d9028ff1..9e7cb5f9176 100644
              if (empty($course->legacyfiles)) {
                  //0 or missing means no legacy files ever used in this course - new course or nobody turned on legacy files yet
 diff --git a/lib/phpunit/tests/advanced_test.php b/lib/phpunit/tests/advanced_test.php
-index 8ee2388c63f..88857f2c80d 100644
+index 4b67b169bac..4cfccdaa56c 100644
 --- a/lib/phpunit/tests/advanced_test.php
 +++ b/lib/phpunit/tests/advanced_test.php
-@@ -161,9 +161,9 @@ class advanced_test extends \advanced_testcase {
+@@ -166,9 +166,9 @@ class advanced_test extends \advanced_testcase {
          $course = $this->getDataGenerator()->create_course();
          $this->assertEquals($numcourses + 1, $DB->count_records('course'));
  
@@ -393,7 +384,7 @@ index 8ee2388c63f..88857f2c80d 100644
  
          $this->resetAllData();
  
-@@ -177,11 +177,11 @@ class advanced_test extends \advanced_testcase {
+@@ -182,11 +182,11 @@ class advanced_test extends \advanced_testcase {
          $displayid = $DB->insert_record('user_preferences', array('userid'=>2, 'name'=> 'phpunittest', 'value'=>'x'));
          $this->assertEquals($originaldisplayid, $displayid);
  
@@ -408,7 +399,7 @@ index 8ee2388c63f..88857f2c80d 100644
  
          $this->resetAllData();
  
-@@ -189,7 +189,7 @@ class advanced_test extends \advanced_testcase {
+@@ -194,7 +194,7 @@ class advanced_test extends \advanced_testcase {
          $course = $this->getDataGenerator()->create_course();
          $this->assertEquals($numcourses + 1, $DB->count_records('course'));
  
@@ -417,7 +408,7 @@ index 8ee2388c63f..88857f2c80d 100644
          $DB->delete_records('user', array('id'=>2));
  
          $this->resetAllData();
-@@ -198,7 +198,7 @@ class advanced_test extends \advanced_testcase {
+@@ -203,7 +203,7 @@ class advanced_test extends \advanced_testcase {
          $course = $this->getDataGenerator()->create_course();
          $this->assertEquals($numcourses + 1, $DB->count_records('course'));
  
@@ -741,7 +732,7 @@ index 09742c1ed5c..3e33b7e4e31 100644
          }, $posts);
      }
 diff --git a/mod/forum/classes/local/entities/forum.php b/mod/forum/classes/local/entities/forum.php
-index 4d4808b824b..4f8f5f06c71 100644
+index 53cfebdae0f..fa0849f61fd 100644
 --- a/mod/forum/classes/local/entities/forum.php
 +++ b/mod/forum/classes/local/entities/forum.php
 @@ -107,6 +107,8 @@ class forum {
@@ -928,10 +919,10 @@ index 9ed4c5498ae..b46b3745a01 100644
      }
  
 diff --git a/mod/forum/classes/local/managers/capability.php b/mod/forum/classes/local/managers/capability.php
-index 76e347f1175..a99f7110754 100644
+index 8a7096b53cb..2f8aa676682 100644
 --- a/mod/forum/classes/local/managers/capability.php
 +++ b/mod/forum/classes/local/managers/capability.php
-@@ -566,6 +566,10 @@ class capability {
+@@ -570,6 +570,10 @@ class capability {
              // You cannot reply privately to a post which is, itself, a private reply.
              return false;
          }
@@ -1012,7 +1003,7 @@ index b019ab3e735..4a52539ce6f 100644
          $fakemform = $post->attachments;
          if ($postid = forum_add_new_post($post, $fakemform)) {
 diff --git a/mod/forum/lang/en/forum.php b/mod/forum/lang/en/forum.php
-index b16aebc9d6d..7bfa05ff0a3 100644
+index 98af38c6535..c913efa1963 100644
 --- a/mod/forum/lang/en/forum.php
 +++ b/mod/forum/lang/en/forum.php
 @@ -42,6 +42,7 @@ $string['allsubscribe'] = 'Subscribe to all forums';
@@ -1109,7 +1100,7 @@ index aa2f40b3db5..32d15f43488 100644
   * Determine the current context if one was not already specified.
   *
 diff --git a/mod/forum/mod_form.php b/mod/forum/mod_form.php
-index 65cd77a75ea..863fd0d28cd 100644
+index 37174841848..526c928e231 100644
 --- a/mod/forum/mod_form.php
 +++ b/mod/forum/mod_form.php
 @@ -56,6 +56,15 @@ class mod_forum_mod_form extends moodleform_mod {
@@ -1129,7 +1120,7 @@ index 65cd77a75ea..863fd0d28cd 100644
  
          $name = get_string('duedate', 'forum');
 diff --git a/mod/forum/post.php b/mod/forum/post.php
-index 921fafd72f3..2058522c7af 100644
+index a3f2925cc0a..f74b645123e 100644
 --- a/mod/forum/post.php
 +++ b/mod/forum/post.php
 @@ -329,7 +329,7 @@ if (!empty($forum)) {
@@ -1141,7 +1132,7 @@ index 921fafd72f3..2058522c7af 100644
          !has_capability('mod/forum:editanypost', $modcontext)) {
          throw new \moodle_exception('cannoteditposts', 'forum');
      }
-@@ -692,7 +692,8 @@ file_prepare_draft_area($draftitemid, $modcontext->id, 'mod_forum', 'attachment'
+@@ -695,7 +695,8 @@ file_prepare_draft_area($draftitemid, $modcontext->id, 'mod_forum', 'attachment'
  
  // Load data into form NOW!
  
@@ -1151,7 +1142,7 @@ index 921fafd72f3..2058522c7af 100644
      $data = new stdClass();
      $data->date = userdate($post->created);
      if ($post->messageformat == FORMAT_HTML) {
-@@ -737,6 +738,7 @@ $mformpost->set_data(
+@@ -740,6 +741,7 @@ $mformpost->set_data(
              'itemid' => $draftideditor
          ),
          'discussionsubscribe' => $discussionsubscribe,
@@ -1232,7 +1223,7 @@ index 9fed57a368d..d312c4217a3 100644
  
          $discussionsummary = new discussion_summary_entity($discussion, $firstpost, $firstauthor, $lastauthor);
 diff --git a/mod/forum/tests/entities_discussion_test.php b/mod/forum/tests/entities_discussion_test.php
-index ae161e3389c..c18804a425f 100644
+index 4a0dccfaefc..60c51363432 100644
 --- a/mod/forum/tests/entities_discussion_test.php
 +++ b/mod/forum/tests/entities_discussion_test.php
 @@ -69,7 +69,8 @@ class entities_discussion_test extends \advanced_testcase {
@@ -1382,11 +1373,86 @@ index 0f1addfc00c..4ece9185b9e 100644
              $mform->addHelpButton('display', 'displayselect', 'resource');
          }
  
+diff --git a/reportbuilder/tests/external/custom_report_data_exporter_test.php b/reportbuilder/tests/external/custom_report_data_exporter_test.php
+index 5e2d9476177..40fabfb4e78 100644
+--- a/reportbuilder/tests/external/custom_report_data_exporter_test.php
++++ b/reportbuilder/tests/external/custom_report_data_exporter_test.php
+@@ -58,19 +58,22 @@ class custom_report_data_exporter_test extends advanced_testcase {
+ 
+         $reportinstance = manager::get_report_from_persistent($report);
+ 
+-        $exporter = new custom_report_data_exporter(null, ['report' => $reportinstance, 'page' => 0, 'perpage' => 2]);
++        $exporter = new custom_report_data_exporter(null, ['report' => $reportinstance, 'page' => 0, 'perpage' => 3]);
+         $export = $exporter->export($PAGE->get_renderer('core_reportbuilder'));
+ 
+-        // There are three users (admin plus the two previouly created), but we're paging the first two only.
++        // There are four users (admin, anonymous, plus the two previouly created), but we're paging the first three only.
+         $this->assertEquals(['Lovely user', 'Email address'], $export->headers);
+         $this->assertEquals([
+             [
+                 'columns' => ['Admin User', 'admin@example.com'],
+             ],
++            [
++                'columns' => ['Anonymous User', 'Somebody@example.com'],
++            ],
+             [
+                 'columns' => ['Charlie Carrot', 'u2@example.com'],
+             ],
+         ], $export->rows);
+-        $this->assertEquals(3, $export->totalrowcount);
++        $this->assertEquals(4, $export->totalrowcount);
+     }
+ }
+diff --git a/reportbuilder/tests/external/reports/retrieve_test.php b/reportbuilder/tests/external/reports/retrieve_test.php
+index 15b1ecd3d45..de8a43cb91f 100644
+--- a/reportbuilder/tests/external/reports/retrieve_test.php
++++ b/reportbuilder/tests/external/reports/retrieve_test.php
+@@ -56,8 +56,8 @@ class retrieve_test extends externallib_advanced_testcase {
+         $generator->create_column(['reportid' => $report->get('id'), 'uniqueidentifier' => 'user:fullname', 'sortenabled' => 1]);
+         $generator->create_column(['reportid' => $report->get('id'), 'uniqueidentifier' => 'user:email']);
+ 
+-        // There are three users (admin plus the two previouly created), but we're paging the first two only.
+-        $result = retrieve::execute($report->get('id'), 0, 2);
++        // There are four users (admin, anonymous plus the two previouly created), but we're paging the first three only.
++        $result = retrieve::execute($report->get('id'), 0, 3);
+         $result = external_api::clean_returnvalue(retrieve::execute_returns(), $result);
+ 
+         // All data is generated by exporters, just assert relevant sample of each.
+@@ -70,15 +70,18 @@ class retrieve_test extends externallib_advanced_testcase {
+             [
+                 'columns' => ['Admin User', 'admin@example.com'],
+             ],
++            [
++                'columns' => ['Anonymous User', 'Somebody@example.com'],
++            ],
+             [
+                 'columns' => ['Charlie Carrot', 'u2@example.com'],
+             ],
+         ], $result['data']['rows']);
+-        $this->assertEquals(3, $result['data']['totalrowcount']);
++        $this->assertEquals(4, $result['data']['totalrowcount']);
+         $this->assertEmpty($result['warnings']);
+ 
+         // Retrieve the second set of pages results.
+-        $result = retrieve::execute($report->get('id'), 1, 2);
++        $result = retrieve::execute($report->get('id'), 1, 3);
+         $result = external_api::clean_returnvalue(retrieve::execute_returns(), $result);
+ 
+         $this->assertArrayHasKey('details', $result);
+@@ -91,7 +94,7 @@ class retrieve_test extends externallib_advanced_testcase {
+                 'columns' => ['Zoe Zebra', 'u1@example.com'],
+             ],
+         ], $result['data']['rows']);
+-        $this->assertEquals(3, $result['data']['totalrowcount']);
++        $this->assertEquals(4, $result['data']['totalrowcount']);
+         $this->assertEmpty($result['warnings']);
+     }
+ 
 diff --git a/reportbuilder/tests/local/aggregation/avg_test.php b/reportbuilder/tests/local/aggregation/avg_test.php
-index aee99bd78e6..37cef7055af 100644
+index 661c2129d5a..52a5130d480 100644
 --- a/reportbuilder/tests/local/aggregation/avg_test.php
 +++ b/reportbuilder/tests/local/aggregation/avg_test.php
-@@ -69,6 +69,10 @@ class avg_test extends core_reportbuilder_testcase {
+@@ -67,6 +67,10 @@ class avg_test extends core_reportbuilder_testcase {
                  'c0_firstname' => 'Admin',
                  'c1_suspended' => '0.0',
              ],
@@ -1397,11 +1463,22 @@ index aee99bd78e6..37cef7055af 100644
              [
                  'c0_firstname' => 'Bob',
                  'c1_suspended' => '0.5',
+@@ -110,6 +114,10 @@ class avg_test extends core_reportbuilder_testcase {
+                 'c0_firstname' => 'Admin',
+                 'c1_suspended' => '0.0 suspended',
+             ],
++            [
++                'c0_firstname' => 'Anonymous',
++                'c1_suspended' => '0.0 suspended',
++            ],
+             [
+                 'c0_firstname' => 'Bob',
+                 'c1_suspended' => '0.5 suspended',
 diff --git a/reportbuilder/tests/local/aggregation/count_test.php b/reportbuilder/tests/local/aggregation/count_test.php
-index f12623ad7df..c62531c43c0 100644
+index cbdc62b4c96..97ef86b0c5a 100644
 --- a/reportbuilder/tests/local/aggregation/count_test.php
 +++ b/reportbuilder/tests/local/aggregation/count_test.php
-@@ -69,6 +69,10 @@ class count_test extends core_reportbuilder_testcase {
+@@ -67,6 +67,10 @@ class count_test extends core_reportbuilder_testcase {
                  'c0_firstname' => 'Admin',
                  'c1_lastname' => 1,
              ],
@@ -1413,7 +1490,7 @@ index f12623ad7df..c62531c43c0 100644
                  'c0_firstname' => 'Bob',
                  'c1_lastname' => 3,
 diff --git a/reportbuilder/tests/local/aggregation/countdistinct_test.php b/reportbuilder/tests/local/aggregation/countdistinct_test.php
-index bd46883f370..db4bd36359a 100644
+index a3103c3cdc3..b73b0eaa8df 100644
 --- a/reportbuilder/tests/local/aggregation/countdistinct_test.php
 +++ b/reportbuilder/tests/local/aggregation/countdistinct_test.php
 @@ -69,6 +69,10 @@ class countdistinct_test extends core_reportbuilder_testcase {
@@ -1427,7 +1504,7 @@ index bd46883f370..db4bd36359a 100644
              [
                  'c0_firstname' => 'Bob',
                  'c1_lastname' => 2,
-@@ -97,8 +101,8 @@ class countdistinct_test extends core_reportbuilder_testcase {
+@@ -99,8 +103,8 @@ class countdistinct_test extends core_reportbuilder_testcase {
          $content = $this->get_custom_report_content($report->get('id'));
          $this->assertCount(1, $content);
  
@@ -1439,7 +1516,7 @@ index bd46883f370..db4bd36359a 100644
      }
  }
 diff --git a/reportbuilder/tests/local/aggregation/groupconcat_test.php b/reportbuilder/tests/local/aggregation/groupconcat_test.php
-index c339e626c16..e6985df23e7 100644
+index f945eab16e9..4bbebde10e7 100644
 --- a/reportbuilder/tests/local/aggregation/groupconcat_test.php
 +++ b/reportbuilder/tests/local/aggregation/groupconcat_test.php
 @@ -72,6 +72,10 @@ class groupconcat_test extends core_reportbuilder_testcase {
@@ -1453,7 +1530,7 @@ index c339e626c16..e6985df23e7 100644
              [
                  'c0_firstname' => 'Bob',
                  'c1_lastname' => 'Apple, Banana, Banana',
-@@ -137,6 +141,10 @@ class groupconcat_test extends core_reportbuilder_testcase {
+@@ -139,6 +143,10 @@ class groupconcat_test extends core_reportbuilder_testcase {
                  'c0_firstname' => 'Admin',
                  'c1_confirmed' => 'Yes',
              ],
@@ -1465,7 +1542,7 @@ index c339e626c16..e6985df23e7 100644
                  'c0_firstname' => 'Bob',
                  'c1_confirmed' => 'No, Yes, Yes',
 diff --git a/reportbuilder/tests/local/aggregation/groupconcatdistinct_test.php b/reportbuilder/tests/local/aggregation/groupconcatdistinct_test.php
-index 8cdb079ccb9..92041bbbaf8 100644
+index f68459010b0..576a03f8a11 100644
 --- a/reportbuilder/tests/local/aggregation/groupconcatdistinct_test.php
 +++ b/reportbuilder/tests/local/aggregation/groupconcatdistinct_test.php
 @@ -82,6 +82,10 @@ class groupconcatdistinct_test extends core_reportbuilder_testcase {
@@ -1479,7 +1556,7 @@ index 8cdb079ccb9..92041bbbaf8 100644
              [
                  'c0_firstname' => 'Bob',
                  'c1_lastname' => 'Apple, Banana',
-@@ -147,6 +151,10 @@ class groupconcatdistinct_test extends core_reportbuilder_testcase {
+@@ -149,6 +153,10 @@ class groupconcatdistinct_test extends core_reportbuilder_testcase {
                  'c0_firstname' => 'Admin',
                  'c1_confirmed' => 'Yes',
              ],
@@ -1491,10 +1568,10 @@ index 8cdb079ccb9..92041bbbaf8 100644
                  'c0_firstname' => 'Bob',
                  'c1_confirmed' => 'No, Yes',
 diff --git a/reportbuilder/tests/local/aggregation/max_test.php b/reportbuilder/tests/local/aggregation/max_test.php
-index 132b186ee00..df80d8c3ab8 100644
+index 546900507c8..4e40253e3ad 100644
 --- a/reportbuilder/tests/local/aggregation/max_test.php
 +++ b/reportbuilder/tests/local/aggregation/max_test.php
-@@ -68,6 +68,10 @@ class max_test extends core_reportbuilder_testcase {
+@@ -66,6 +66,10 @@ class max_test extends core_reportbuilder_testcase {
                  'c0_firstname' => 'Admin',
                  'c1_suspended' => 'No',
              ],
@@ -1506,10 +1583,10 @@ index 132b186ee00..df80d8c3ab8 100644
                  'c0_firstname' => 'Bob',
                  'c1_suspended' => 'Yes',
 diff --git a/reportbuilder/tests/local/aggregation/min_test.php b/reportbuilder/tests/local/aggregation/min_test.php
-index 9a67fa076a6..826aebb47b2 100644
+index 6f5503846b2..8a2bdbcbd9e 100644
 --- a/reportbuilder/tests/local/aggregation/min_test.php
 +++ b/reportbuilder/tests/local/aggregation/min_test.php
-@@ -68,6 +68,10 @@ class min_test extends core_reportbuilder_testcase {
+@@ -66,6 +66,10 @@ class min_test extends core_reportbuilder_testcase {
                  'c0_firstname' => 'Admin',
                  'c1_suspended' => 'No',
              ],
@@ -1521,10 +1598,10 @@ index 9a67fa076a6..826aebb47b2 100644
                  'c0_firstname' => 'Bob',
                  'c1_suspended' => 'No',
 diff --git a/reportbuilder/tests/local/aggregation/percent_test.php b/reportbuilder/tests/local/aggregation/percent_test.php
-index b31cad570ce..3ec4239542e 100644
+index cbf84343873..b55fb15c7b5 100644
 --- a/reportbuilder/tests/local/aggregation/percent_test.php
 +++ b/reportbuilder/tests/local/aggregation/percent_test.php
-@@ -68,6 +68,10 @@ class percent_test extends core_reportbuilder_testcase {
+@@ -66,6 +66,10 @@ class percent_test extends core_reportbuilder_testcase {
                  'c0_firstname' => 'Admin',
                  'c1_suspended' => '0.0%',
              ],
@@ -1536,10 +1613,10 @@ index b31cad570ce..3ec4239542e 100644
                  'c0_firstname' => 'Bob',
                  'c1_suspended' => '50.0%',
 diff --git a/reportbuilder/tests/local/aggregation/sum_test.php b/reportbuilder/tests/local/aggregation/sum_test.php
-index 406c05caea8..cd3a7214f32 100644
+index 56b4fb7efd0..795cfd25140 100644
 --- a/reportbuilder/tests/local/aggregation/sum_test.php
 +++ b/reportbuilder/tests/local/aggregation/sum_test.php
-@@ -70,6 +70,10 @@ class sum_test extends core_reportbuilder_testcase {
+@@ -68,6 +68,10 @@ class sum_test extends core_reportbuilder_testcase {
                  'c0_firstname' => 'Admin',
                  'c1_suspended' => 0,
              ],
@@ -1550,6 +1627,17 @@ index 406c05caea8..cd3a7214f32 100644
              [
                  'c0_firstname' => 'Bob',
                  'c1_suspended' => 2,
+@@ -111,6 +115,10 @@ class sum_test extends core_reportbuilder_testcase {
+                 'c0_firstname' => 'Admin',
+                 'c1_suspended' => '0 suspended',
+             ],
++            [
++                'c0_firstname' => 'Anonymous',
++                'c1_suspended' => '0 suspended',
++            ],
+             [
+                 'c0_firstname' => 'Bob',
+                 'c1_suspended' => '2 suspended',
 diff --git a/reportbuilder/tests/local/filters/user_test.php b/reportbuilder/tests/local/filters/user_test.php
 index a9cc75590bf..ba754e85aef 100644
 --- a/reportbuilder/tests/local/filters/user_test.php
@@ -1564,7 +1652,7 @@ index a9cc75590bf..ba754e85aef 100644
          ];
      }
 diff --git a/reportbuilder/tests/local/helpers/schedule_test.php b/reportbuilder/tests/local/helpers/schedule_test.php
-index c45c942e374..7556f186055 100644
+index c1d9451e6ef..aa9d74848b5 100644
 --- a/reportbuilder/tests/local/helpers/schedule_test.php
 +++ b/reportbuilder/tests/local/helpers/schedule_test.php
 @@ -238,9 +238,9 @@ class schedule_test extends advanced_testcase {
@@ -1580,17 +1668,17 @@ index c45c942e374..7556f186055 100644
  
      /**
 diff --git a/reportbuilder/tests/local/helpers/user_profile_fields_test.php b/reportbuilder/tests/local/helpers/user_profile_fields_test.php
-index 5b7d1480ce4..7a43601142c 100644
+index 9ec960ca5a9..01c2cf78f3a 100644
 --- a/reportbuilder/tests/local/helpers/user_profile_fields_test.php
 +++ b/reportbuilder/tests/local/helpers/user_profile_fields_test.php
-@@ -212,6 +212,15 @@ class user_profile_fields_test extends core_reportbuilder_testcase {
+@@ -245,6 +245,15 @@ class user_profile_fields_test extends core_reportbuilder_testcase {
                  'c4_data' => '',
                  'c5_data' => '',
                  'c6_data' => '',
 +            ],
 +            [
 +                'c0_firstname' => 'Anonymous',
-+                'c1_data' => 'No',
++                'c1_data' => '',
 +                'c2_data' => 'Not set',
 +                'c3_data' => '',
 +                'c4_data' => '',
@@ -1599,6 +1687,104 @@ index 5b7d1480ce4..7a43601142c 100644
              ], [
                  'c0_firstname' => 'Zebedee',
                  'c1_data' => 'Yes',
+@@ -269,14 +278,14 @@ class user_profile_fields_test extends core_reportbuilder_testcase {
+             ], 'testuser'],
+             'Filter by checkbox profile field (empty)' => ['user:profilefield_checkbox', [
+                 'user:profilefield_checkbox_operator' => boolean_select::NOT_CHECKED,
+-            ], 'admin'],
++            ], 'anonymous_user', 2],
+             'Filter by datetime profile field' => ['user:profilefield_datetime', [
+                 'user:profilefield_datetime_operator' => date::DATE_RANGE,
+                 'user:profilefield_datetime_from' => 1622502000,
+             ], 'testuser'],
+             'Filter by datetime profile field (empty)' => ['user:profilefield_datetime', [
+                 'user:profilefield_datetime_operator' => date::DATE_EMPTY,
+-            ], 'admin'],
++            ], 'anonymous_user', 2],
+             'Filter by menu profile field' => ['user:profilefield_menu', [
+                 'user:profilefield_menu_operator' => select::EQUAL_TO,
+                 'user:profilefield_menu_value' => 'Dog',
+@@ -284,14 +293,14 @@ class user_profile_fields_test extends core_reportbuilder_testcase {
+             'Filter by menu profile field (empty)' => ['user:profilefield_menu', [
+                 'user:profilefield_menu_operator' => select::NOT_EQUAL_TO,
+                 'user:profilefield_menu_value' => 'Dog',
+-            ], 'admin'],
++            ], 'anonymous_user', 2],
+             'Filter by social profile field' => ['user:profilefield_social', [
+                 'user:profilefield_social_operator' => text::IS_EQUAL_TO,
+                 'user:profilefield_social_value' => '12345',
+             ], 'testuser'],
+             'Filter by social profile field (empty)' => ['user:profilefield_social', [
+                 'user:profilefield_social_operator' => text::IS_EMPTY,
+-            ], 'admin'],
++            ], 'anonymous_user', 2],
+             'Filter by text profile field' => ['user:profilefield_text', [
+                 'user:profilefield_text_operator' => text::IS_EQUAL_TO,
+                 'user:profilefield_text_value' => 'Hello',
+@@ -299,7 +308,7 @@ class user_profile_fields_test extends core_reportbuilder_testcase {
+             'Filter by text profile field (empty)' => ['user:profilefield_text', [
+                 'user:profilefield_text_operator' => text::IS_NOT_EQUAL_TO,
+                 'user:profilefield_text_value' => 'Hello',
+-            ], 'admin'],
++            ], 'anonymous_user', 2],
+             'Filter by textarea profile field' => ['user:profilefield_textarea', [
+                 'user:profilefield_textarea_operator' => text::IS_EQUAL_TO,
+                 'user:profilefield_textarea_value' => 'Goodbye',
+@@ -307,7 +316,7 @@ class user_profile_fields_test extends core_reportbuilder_testcase {
+             'Filter by textarea profile field (empty)' => ['user:profilefield_textarea', [
+                 'user:profilefield_textarea_operator' => text::DOES_NOT_CONTAIN,
+                 'user:profilefield_textarea_value' => 'Goodbye',
+-            ], 'admin'],
++            ], 'anonymous_user', 2],
+         ];
+     }
+ 
+@@ -317,10 +326,11 @@ class user_profile_fields_test extends core_reportbuilder_testcase {
+      * @param string $filtername
+      * @param array $filtervalues
+      * @param string $expectmatchuser
++     * @param int $expectmatchnumber
+      *
+      * @dataProvider custom_report_filter_provider
+      */
+-    public function test_custom_report_filter(string $filtername, array $filtervalues, string $expectmatchuser): void {
++    public function test_custom_report_filter(string $filtername, array $filtervalues, string $expectmatchuser, int $expectmatchnumber = 1): void {
+         $this->resetAfterTest();
+ 
+         $userprofilefields = $this->generate_userprofilefields();
+@@ -347,7 +357,11 @@ class user_profile_fields_test extends core_reportbuilder_testcase {
+         $generator->create_filter(['reportid' => $report->get('id'), 'uniqueidentifier' => $filtername]);
+         $content = $this->get_custom_report_content($report->get('id'), 0, $filtervalues);
+ 
+-        $this->assertCount(1, $content);
++        // Normalize output.
++        $usernames = array_column($content, 'c0_username');
++        array_multisort($usernames, SORT_DESC, $content);
++
++        $this->assertCount($expectmatchnumber, $content);
+         $this->assertEquals($expectmatchuser, reset($content[0]));
+     }
+ }
+diff --git a/reportbuilder/tests/manager_test.php b/reportbuilder/tests/manager_test.php
+index 68d01b9eb4c..1df5b545db5 100644
+--- a/reportbuilder/tests/manager_test.php
++++ b/reportbuilder/tests/manager_test.php
+@@ -84,6 +84,7 @@ class manager_test extends core_reportbuilder_testcase {
+         $content = $this->get_custom_report_content($report->get('id'));
+         $this->assertEquals([
+             ['admin', ''],
++            ['anonymous_user', ''],
+             ['usertwo', 'Hello'],
+         ], array_map('array_values', $content));
+ 
+@@ -93,6 +94,7 @@ class manager_test extends core_reportbuilder_testcase {
+         $content = $this->get_custom_report_content($report->get('id'));
+         $this->assertEquals([
+             ['admin'],
++            ['anonymous_user'],
+             ['usertwo'],
+         ], array_map('array_values', $content));
+     }
 diff --git a/reportbuilder/tests/reportbuilder/audience/allusers_test.php b/reportbuilder/tests/reportbuilder/audience/allusers_test.php
 index f76455c9702..85318c3ded4 100644
 --- a/reportbuilder/tests/reportbuilder/audience/allusers_test.php
@@ -1634,3 +1820,79 @@ index 91a4681c593..889fb8f1098 100644
  
          // Test clean up where a course has been removed.
          // Delete the course. This also needs to be this way otherwise the tags are removed by using the proper function.
+diff --git a/user/tests/reportbuilder/datasource/users_test.php b/user/tests/reportbuilder/datasource/users_test.php
+index dc75418bbbe..6f188403391 100644
+--- a/user/tests/reportbuilder/datasource/users_test.php
++++ b/user/tests/reportbuilder/datasource/users_test.php
+@@ -49,22 +49,22 @@ class users_test extends core_reportbuilder_testcase {
+     public function test_datasource_default(): void {
+         $this->resetAfterTest();
+ 
+-        $user2 = $this->getDataGenerator()->create_user(['firstname' => 'Charles']);
+-        $user3 = $this->getDataGenerator()->create_user(['firstname' => 'Brian']);
++        $user3 = $this->getDataGenerator()->create_user(['firstname' => 'Charles']);
++        $user4 = $this->getDataGenerator()->create_user(['firstname' => 'Brian']);
+ 
+         /** @var core_reportbuilder_generator $generator */
+         $generator = $this->getDataGenerator()->get_plugin_generator('core_reportbuilder');
+         $report = $generator->create_report(['name' => 'Users', 'source' => users::class, 'default' => 1]);
+ 
+         $content = $this->get_custom_report_content($report->get('id'));
+-        $this->assertCount(3, $content);
++        $this->assertCount(4, $content);
+ 
+         // Default columns are fullname, username, email. Results are sorted by the fullname.
+-        [$adminrow, $userrow1, $userrow2] = array_map('array_values', $content);
++        [$adminrow, $anonrow, $userrow1, $userrow2] = array_map('array_values', $content);
+ 
+         $this->assertEquals(['Admin User', 'admin', 'admin@example.com'], $adminrow);
+-        $this->assertEquals([fullname($user3), $user3->username, $user3->email], $userrow1);
+-        $this->assertEquals([fullname($user2), $user2->username, $user2->email], $userrow2);
++        $this->assertEquals([fullname($user4), $user4->username, $user4->email], $userrow1);
++        $this->assertEquals([fullname($user3), $user3->username, $user3->email], $userrow2);
+     }
+ 
+     /**
+@@ -116,13 +116,13 @@ class users_test extends core_reportbuilder_testcase {
+         $generator->create_column(['reportid' => $report->get('id'), 'uniqueidentifier' => 'tag:namewithlink']);
+ 
+         $content = $this->get_custom_report_content($report->get('id'));
+-        $this->assertCount(2, $content);
++        $this->assertCount(3, $content);
+ 
+         // Consistent order by firstname, just in case.
+         core_collator::asort_array_of_arrays_by_key($content, 'c4_firstname');
+         $content = array_values($content);
+ 
+-        [$adminrow, $userrow] = array_map('array_values', $content);
++        [$adminrow, $anonrow, $userrow] = array_map('array_values', $content);
+ 
+         $this->assertStringContainsString('Admin User', $adminrow[0]);
+         $this->assertStringContainsString('Admin User', $adminrow[1]);
+@@ -343,7 +343,7 @@ class users_test extends core_reportbuilder_testcase {
+             ], true],
+             'Filter confirmed (no match)' => ['user:confirmed', [
+                 'user:confirmed_operator' => boolean_select::NOT_CHECKED,
+-            ], false],
++            ], true, 'anonymous_user'],
+             'Filter timecreated' => ['user:timecreated', [
+                 'user:timecreated_operator' => date::DATE_RANGE,
+                 'user:timecreated_from' => 1622502000,
+@@ -382,7 +382,7 @@ class users_test extends core_reportbuilder_testcase {
+      *
+      * @dataProvider datasource_filters_provider
+      */
+-    public function test_datasource_filters(string $filtername, array $filtervalues, bool $expectmatch): void {
++    public function test_datasource_filters(string $filtername, array $filtervalues, bool $expectmatch, string $expectmatchuser = 'zoe1'): void {
+         $this->resetAfterTest();
+ 
+         $user = $this->getDataGenerator()->create_user([
+@@ -423,7 +423,7 @@ class users_test extends core_reportbuilder_testcase {
+ 
+             // Merge report usernames into easily traversable array.
+             $usernames = array_merge(...array_map('array_values', $content));
+-            $this->assertContains($user->username, $usernames);
++            $this->assertContains($expectmatchuser, $usernames);
+         } else {
+             $this->assertEmpty($content);
+         }
