@@ -1,5 +1,5 @@
 diff --git a/.github/workflows/push.yml b/.github/workflows/push.yml
-index eb074017b20..c80b2170aa0 100644
+index e1db4753d14..ed31a0298b3 100644
 --- a/.github/workflows/push.yml
 +++ b/.github/workflows/push.yml
 @@ -3,6 +3,7 @@ name: Core
@@ -10,100 +10,6 @@ index eb074017b20..c80b2170aa0 100644
        - master
        - MOODLE_[0-9]+_STABLE
      tags-ignore:
-diff --git a/.travis.yml b/.travis.yml
-index ee38dddbbb0..ca1a44b64db 100644
---- a/.travis.yml
-+++ b/.travis.yml
-@@ -17,9 +17,11 @@ services:
-     - docker
- 
- addons:
-+  chrome: stable
-   postgresql: "12"
-   apt:
-     packages:
-+      - chromium-chromedriver
-       - postgresql-12
-       - postgresql-client-12
- 
-@@ -104,6 +106,13 @@ install:
-             sudo service postgresql start
-             sh -c 'until pg_isready -p $PGPORT; do echo "Waiting for the DB to be up..."; sleep 2; done'
-         fi
-+    - >
-+        if [ "$TASK" = 'BEHAT' ];
-+        then
-+            # Set always_populate_raw_post_data to -1
-+            echo 'always_populate_raw_post_data = -1' > /tmp/custom.ini
-+            phpenv config-add /tmp/custom.ini
-+        fi
-     - >
-         if [ "$TASK" = 'PHPUNIT' ];
-         then
-@@ -115,6 +124,10 @@ install:
-             echo 'extension="redis.so"' > /tmp/redis.ini
-             phpenv config-add /tmp/redis.ini
- 
-+            # Disable opcache
-+            echo 'opcache.enable_cli = 0' > /tmp/opcache.ini
-+            phpenv config-add /tmp/opcache.ini
-+
-             # Install composer dependencies.
-             # We need --no-interaction in case we hit API limits for composer. This causes it to fall back to a standard clone.
-             # Typically it should be able to use the Composer cache if any other job has already completed before we started here.
-@@ -209,10 +222,36 @@ before_script:
-         php admin/tool/phpunit/cli/init.php
-       fi
- 
-+    - >
-+      if [ "$TASK" = 'BEHAT' ];
-+      then
-+        # We need to use openjdk8
-+        export JAVA_HOME='/usr/local/lib/jvm/openjdk8'
-+        export PATH="$JAVA_HOME/bin:$PATH"
-+
-+        # Create a directory for the behat database
-+        mkdir -p "$HOME"/roots/behat
-+
-+        # The behat dataroot, prefix and wwwroot
-+        sed -i \
-+          -e "/require_once/i \\\$CFG->behat_dataroot = '\/home\/travis\/roots\/behat';" \
-+          -e "/require_once/i \\\$CFG->behat_prefix = 'b_';" \
-+          -e "/require_once/i \\\$CFG->behat_wwwroot = 'http://localhost:8000';" \
-+          -e "/require_once/i \\\$CFG->behat_profiles=['default'=>['browser'=>'chrome','wd_host'=>'http://localhost:4444/wd/hub']];" \
-+          config.php ;
-+
-+        # Get and launch selenium
-+        wget http://selenium-release.storage.googleapis.com/3.9/selenium-server-standalone-3.9.1.jar;
-+        xvfb-run -a --server-args="-screen 0 1024x768x24" java -Dwebdriver.chrome.driver=/usr/lib/chromium-browser/chromedriver -jar selenium-server-standalone-3.9.1.jar -log /tmp/selenium.log &
-+
-+        # Initialise Behat for Moodle.
-+        php admin/tool/behat/cli/init.php
-+      fi
-+
-     - >
-       if [ "$TASK" = 'GRUNT' ];
-       then
--        npm install --no-spin;
-+        npm install --no-spin --no-shrinkwrap;
-         npm install --no-spin -g grunt ;
-       fi
- 
-@@ -250,6 +289,14 @@ script:
-         vendor/bin/phpunit --fail-on-risky --disallow-test-output --verbose;
-       fi
- 
-+    - >
-+      if [ "$TASK" = 'BEHAT' ];
-+      then
-+        (php -S localhost:8000 &) 2> /dev/null > /dev/null;
-+        sleep 5
-+        vendor/bin/behat --config /home/travis/roots/behat/behatrun/behat/behat.yml --tags @local_lae;
-+      fi
-+
-     - >
-       if [ "$TASK" = 'CITEST' ];
-       then
 diff --git a/LAE_readme.md b/LAE_readme.md
 new file mode 100644
 index 00000000000..d6024b045f0
@@ -214,10 +120,10 @@ index 0b289c85351..0e98d7b6ae2 100644
  
          $user = $this->getDataGenerator()->create_user(['lastaccess' => time() - YEARSECS]);
 diff --git a/analytics/tests/privacy/provider_test.php b/analytics/tests/privacy/provider_test.php
-index de9cb4dadf2..074431fe775 100644
+index 06ed516d99c..41dbcfe1702 100644
 --- a/analytics/tests/privacy/provider_test.php
 +++ b/analytics/tests/privacy/provider_test.php
-@@ -112,6 +112,12 @@ class provider_test extends \core_privacy\tests\provider_testcase {
+@@ -154,6 +154,12 @@ class provider_test extends \core_privacy\tests\provider_testcase {
          $prediction->action_executed(\core_analytics\prediction::ACTION_INCORRECTLY_FLAGGED, $this->model2->get_target());
  
          $this->setAdminUser();
@@ -230,7 +136,7 @@ index de9cb4dadf2..074431fe775 100644
      }
  
      /**
-@@ -159,6 +165,12 @@ class provider_test extends \core_privacy\tests\provider_testcase {
+@@ -201,6 +207,12 @@ class provider_test extends \core_privacy\tests\provider_testcase {
      public function test_delete_context_data() {
          global $DB;
  
@@ -343,7 +249,7 @@ index 0e98f086714..ae43e61faf4 100644
          $this->assertEquals(0, $DB->count_records('user', array('suspended'=>1)));
  
 diff --git a/course/edit_form.php b/course/edit_form.php
-index 0c6d9028ff1..9e7cb5f9176 100644
+index fdcdad7f299..6c211147023 100644
 --- a/course/edit_form.php
 +++ b/course/edit_form.php
 @@ -4,6 +4,7 @@ defined('MOODLE_INTERNAL') || die;
@@ -351,10 +257,10 @@ index 0c6d9028ff1..9e7cb5f9176 100644
  require_once($CFG->libdir.'/formslib.php');
  require_once($CFG->libdir.'/completionlib.php');
 +require_once($CFG->libdir.'/resourcelib.php');
+ require_once($CFG->libdir . '/pdflib.php');
  
  /**
-  * The form for handling editing a course.
-@@ -293,6 +294,13 @@ class course_edit_form extends moodleform {
+@@ -294,6 +295,13 @@ class course_edit_form extends moodleform {
          // Files and uploads.
          $mform->addElement('header', 'filehdr', get_string('filesanduploads'));
  
@@ -369,7 +275,7 @@ index 0c6d9028ff1..9e7cb5f9176 100644
              if (empty($course->legacyfiles)) {
                  //0 or missing means no legacy files ever used in this course - new course or nobody turned on legacy files yet
 diff --git a/lib/phpunit/tests/advanced_test.php b/lib/phpunit/tests/advanced_test.php
-index 4b67b169bac..4cfccdaa56c 100644
+index 2088a4e7baa..3263fe101f2 100644
 --- a/lib/phpunit/tests/advanced_test.php
 +++ b/lib/phpunit/tests/advanced_test.php
 @@ -166,9 +166,9 @@ class advanced_test extends \advanced_testcase {
@@ -873,7 +779,7 @@ index 90cd0fc6ba8..c80a77d88d3 100644
  
      /**
 diff --git a/mod/forum/classes/local/exporters/post.php b/mod/forum/classes/local/exporters/post.php
-index 7137510e4e8..ad66884f058 100644
+index a336f551740..4c1795329f4 100644
 --- a/mod/forum/classes/local/exporters/post.php
 +++ b/mod/forum/classes/local/exporters/post.php
 @@ -390,6 +390,8 @@ class post extends exporter {
@@ -963,10 +869,10 @@ index 5e603e2be25..6ca5748b4f8 100644
  
      /**
 diff --git a/mod/forum/externallib.php b/mod/forum/externallib.php
-index b019ab3e735..4a52539ce6f 100644
+index 6885c52e9b8..36bed05b2f1 100644
 --- a/mod/forum/externallib.php
 +++ b/mod/forum/externallib.php
-@@ -162,6 +162,7 @@ class mod_forum_external extends external_api {
+@@ -173,6 +173,7 @@ class mod_forum_external extends external_api {
                      'numdiscussions' => new external_value(PARAM_INT, 'Number of discussions in the forum', VALUE_OPTIONAL),
                      'cancreatediscussions' => new external_value(PARAM_BOOL, 'If the user can create discussions', VALUE_OPTIONAL),
                      'lockdiscussionafter' => new external_value(PARAM_INT, 'After what period a discussion is locked', VALUE_OPTIONAL),
@@ -974,7 +880,7 @@ index b019ab3e735..4a52539ce6f 100644
                      'istracked' => new external_value(PARAM_BOOL, 'If the user is tracking the forum', VALUE_OPTIONAL),
                      'unreadpostscount' => new external_value(PARAM_INT, 'The number of unread posts for tracked forums',
                          VALUE_OPTIONAL),
-@@ -1061,7 +1062,8 @@ class mod_forum_external extends external_api {
+@@ -1072,7 +1073,8 @@ class mod_forum_external extends external_api {
              'private'             => false,
              'inlineattachmentsid' => 0,
              'attachmentsid' => null,
@@ -984,7 +890,7 @@ index b019ab3e735..4a52539ce6f 100644
          );
          foreach ($params['options'] as $option) {
              $name = trim($option['name']);
-@@ -1085,6 +1087,9 @@ class mod_forum_external extends external_api {
+@@ -1096,6 +1098,9 @@ class mod_forum_external extends external_api {
                  case 'topreferredformat':
                      $value = clean_param($option['value'], PARAM_BOOL);
                      break;
@@ -994,7 +900,7 @@ index b019ab3e735..4a52539ce6f 100644
                  default:
                      throw new moodle_exception('errorinvalidparam', 'webservice', '', $name);
              }
-@@ -1120,6 +1125,7 @@ class mod_forum_external extends external_api {
+@@ -1131,6 +1136,7 @@ class mod_forum_external extends external_api {
          $post->itemid = $options['inlineattachmentsid'];
          $post->attachments = $options['attachmentsid'];
          $post->isprivatereply = $options['private'];
@@ -1003,7 +909,7 @@ index b019ab3e735..4a52539ce6f 100644
          $fakemform = $post->attachments;
          if ($postid = forum_add_new_post($post, $fakemform)) {
 diff --git a/mod/forum/lang/en/forum.php b/mod/forum/lang/en/forum.php
-index 98af38c6535..c913efa1963 100644
+index 27de70d4ff9..96af0d2ad68 100644
 --- a/mod/forum/lang/en/forum.php
 +++ b/mod/forum/lang/en/forum.php
 @@ -42,6 +42,7 @@ $string['allsubscribe'] = 'Subscribe to all forums';
@@ -1015,7 +921,7 @@ index 98af38c6535..c913efa1963 100644
  $string['areaattachment'] = 'Attachments';
  $string['areapost'] = 'Messages';
 diff --git a/mod/forum/lib.php b/mod/forum/lib.php
-index aa2f40b3db5..32d15f43488 100644
+index d02c887f0d5..5ec960be694 100644
 --- a/mod/forum/lib.php
 +++ b/mod/forum/lib.php
 @@ -66,6 +66,10 @@ if (!defined('FORUM_CRON_USER_CACHE')) {
@@ -1100,7 +1006,7 @@ index aa2f40b3db5..32d15f43488 100644
   * Determine the current context if one was not already specified.
   *
 diff --git a/mod/forum/mod_form.php b/mod/forum/mod_form.php
-index 37174841848..526c928e231 100644
+index d1b194e2980..2e2b65f0fa3 100644
 --- a/mod/forum/mod_form.php
 +++ b/mod/forum/mod_form.php
 @@ -56,6 +56,15 @@ class mod_forum_mod_form extends moodleform_mod {
@@ -1120,10 +1026,10 @@ index 37174841848..526c928e231 100644
  
          $name = get_string('duedate', 'forum');
 diff --git a/mod/forum/post.php b/mod/forum/post.php
-index a3f2925cc0a..f74b645123e 100644
+index ddadf112001..385a526a80d 100644
 --- a/mod/forum/post.php
 +++ b/mod/forum/post.php
-@@ -329,7 +329,7 @@ if (!empty($forum)) {
+@@ -332,7 +332,7 @@ if (!empty($forum)) {
              throw new \moodle_exception('maxtimehaspassed', 'forum', '', format_time($CFG->maxeditingtime));
          }
      }
@@ -1132,7 +1038,7 @@ index a3f2925cc0a..f74b645123e 100644
          !has_capability('mod/forum:editanypost', $modcontext)) {
          throw new \moodle_exception('cannoteditposts', 'forum');
      }
-@@ -695,7 +695,8 @@ file_prepare_draft_area($draftitemid, $modcontext->id, 'mod_forum', 'attachment'
+@@ -698,7 +698,8 @@ file_prepare_draft_area($draftitemid, $modcontext->id, 'mod_forum', 'attachment'
  
  // Load data into form NOW!
  
@@ -1142,7 +1048,7 @@ index a3f2925cc0a..f74b645123e 100644
      $data = new stdClass();
      $data->date = userdate($post->created);
      if ($post->messageformat == FORMAT_HTML) {
-@@ -740,6 +741,7 @@ $mformpost->set_data(
+@@ -743,6 +744,7 @@ $mformpost->set_data(
              'itemid' => $draftideditor
          ),
          'discussionsubscribe' => $discussionsubscribe,
@@ -1337,7 +1243,7 @@ index 2c9498dd2d3..d5d3b6f5a57 100644
                  throw new moodle1_convert_exception('unknown_resource_successor', $type);
          }
 diff --git a/mod/resource/lib.php b/mod/resource/lib.php
-index 563d2422bc5..63d7a046c41 100644
+index eee7f1e6db2..fbe6b6ef7f6 100644
 --- a/mod/resource/lib.php
 +++ b/mod/resource/lib.php
 @@ -494,7 +494,10 @@ function resource_dndupload_handle($uploadinfo) {
@@ -1404,7 +1310,7 @@ index 5e2d9476177..40fabfb4e78 100644
      }
  }
 diff --git a/reportbuilder/tests/external/reports/retrieve_test.php b/reportbuilder/tests/external/reports/retrieve_test.php
-index 15b1ecd3d45..de8a43cb91f 100644
+index ac50ab448ac..d111f012ab0 100644
 --- a/reportbuilder/tests/external/reports/retrieve_test.php
 +++ b/reportbuilder/tests/external/reports/retrieve_test.php
 @@ -56,8 +56,8 @@ class retrieve_test extends externallib_advanced_testcase {
@@ -1449,10 +1355,10 @@ index 15b1ecd3d45..de8a43cb91f 100644
      }
  
 diff --git a/reportbuilder/tests/local/aggregation/avg_test.php b/reportbuilder/tests/local/aggregation/avg_test.php
-index 661c2129d5a..52a5130d480 100644
+index 86123c3c7de..d6469486864 100644
 --- a/reportbuilder/tests/local/aggregation/avg_test.php
 +++ b/reportbuilder/tests/local/aggregation/avg_test.php
-@@ -67,6 +67,10 @@ class avg_test extends core_reportbuilder_testcase {
+@@ -68,6 +68,10 @@ class avg_test extends core_reportbuilder_testcase {
                  'c0_firstname' => 'Admin',
                  'c1_suspended' => '0.0',
              ],
@@ -1463,9 +1369,9 @@ index 661c2129d5a..52a5130d480 100644
              [
                  'c0_firstname' => 'Bob',
                  'c1_suspended' => '0.5',
-@@ -110,6 +114,10 @@ class avg_test extends core_reportbuilder_testcase {
+@@ -112,6 +116,10 @@ class avg_test extends core_reportbuilder_testcase {
                  'c0_firstname' => 'Admin',
-                 'c1_suspended' => '0.0 suspended',
+                 'c1_suspended' => '0.0 (avg)',
              ],
 +            [
 +                'c0_firstname' => 'Anonymous',
@@ -1473,7 +1379,7 @@ index 661c2129d5a..52a5130d480 100644
 +            ],
              [
                  'c0_firstname' => 'Bob',
-                 'c1_suspended' => '0.5 suspended',
+                 'c1_suspended' => '0.5 (avg)',
 diff --git a/reportbuilder/tests/local/aggregation/count_test.php b/reportbuilder/tests/local/aggregation/count_test.php
 index cbdc62b4c96..97ef86b0c5a 100644
 --- a/reportbuilder/tests/local/aggregation/count_test.php
@@ -1516,10 +1422,10 @@ index a3103c3cdc3..b73b0eaa8df 100644
      }
  }
 diff --git a/reportbuilder/tests/local/aggregation/groupconcat_test.php b/reportbuilder/tests/local/aggregation/groupconcat_test.php
-index f945eab16e9..4bbebde10e7 100644
+index 94b6e9643e7..c04f19d7642 100644
 --- a/reportbuilder/tests/local/aggregation/groupconcat_test.php
 +++ b/reportbuilder/tests/local/aggregation/groupconcat_test.php
-@@ -72,6 +72,10 @@ class groupconcat_test extends core_reportbuilder_testcase {
+@@ -74,6 +74,10 @@ class groupconcat_test extends core_reportbuilder_testcase {
                  'c0_firstname' => 'Admin',
                  'c1_lastname' => 'User',
              ],
@@ -1530,9 +1436,9 @@ index f945eab16e9..4bbebde10e7 100644
              [
                  'c0_firstname' => 'Bob',
                  'c1_lastname' => 'Apple, Banana, Banana',
-@@ -139,6 +143,10 @@ class groupconcat_test extends core_reportbuilder_testcase {
+@@ -149,6 +153,10 @@ class groupconcat_test extends core_reportbuilder_testcase {
                  'c0_firstname' => 'Admin',
-                 'c1_confirmed' => 'Yes',
+                 'c1_confirmed' => 'Yes (groupconcat)',
              ],
 +            [
 +                'c0_firstname' => 'Anonymous',
@@ -1540,12 +1446,12 @@ index f945eab16e9..4bbebde10e7 100644
 +            ],
              [
                  'c0_firstname' => 'Bob',
-                 'c1_confirmed' => 'No, Yes, Yes',
+                 'c1_confirmed' => 'No (groupconcat), Yes (groupconcat), Yes (groupconcat)',
 diff --git a/reportbuilder/tests/local/aggregation/groupconcatdistinct_test.php b/reportbuilder/tests/local/aggregation/groupconcatdistinct_test.php
-index f68459010b0..576a03f8a11 100644
+index 0477ba8a423..d678cbda673 100644
 --- a/reportbuilder/tests/local/aggregation/groupconcatdistinct_test.php
 +++ b/reportbuilder/tests/local/aggregation/groupconcatdistinct_test.php
-@@ -82,6 +82,10 @@ class groupconcatdistinct_test extends core_reportbuilder_testcase {
+@@ -84,6 +84,10 @@ class groupconcatdistinct_test extends core_reportbuilder_testcase {
                  'c0_firstname' => 'Admin',
                  'c1_lastname' => 'User',
              ],
@@ -1556,9 +1462,9 @@ index f68459010b0..576a03f8a11 100644
              [
                  'c0_firstname' => 'Bob',
                  'c1_lastname' => 'Apple, Banana',
-@@ -149,6 +153,10 @@ class groupconcatdistinct_test extends core_reportbuilder_testcase {
+@@ -159,6 +163,10 @@ class groupconcatdistinct_test extends core_reportbuilder_testcase {
                  'c0_firstname' => 'Admin',
-                 'c1_confirmed' => 'Yes',
+                 'c1_confirmed' => 'Yes (groupconcatdistinct)',
              ],
 +            [
 +                'c0_firstname' => 'Anonymous',
@@ -1566,7 +1472,7 @@ index f68459010b0..576a03f8a11 100644
 +            ],
              [
                  'c0_firstname' => 'Bob',
-                 'c1_confirmed' => 'No, Yes',
+                 'c1_confirmed' => 'No (groupconcatdistinct), Yes (groupconcatdistinct)',
 diff --git a/reportbuilder/tests/local/aggregation/max_test.php b/reportbuilder/tests/local/aggregation/max_test.php
 index 546900507c8..4e40253e3ad 100644
 --- a/reportbuilder/tests/local/aggregation/max_test.php
@@ -1613,10 +1519,10 @@ index cbf84343873..b55fb15c7b5 100644
                  'c0_firstname' => 'Bob',
                  'c1_suspended' => '50.0%',
 diff --git a/reportbuilder/tests/local/aggregation/sum_test.php b/reportbuilder/tests/local/aggregation/sum_test.php
-index 56b4fb7efd0..795cfd25140 100644
+index c8b8aaa467e..9a2095edc69 100644
 --- a/reportbuilder/tests/local/aggregation/sum_test.php
 +++ b/reportbuilder/tests/local/aggregation/sum_test.php
-@@ -68,6 +68,10 @@ class sum_test extends core_reportbuilder_testcase {
+@@ -69,6 +69,10 @@ class sum_test extends core_reportbuilder_testcase {
                  'c0_firstname' => 'Admin',
                  'c1_suspended' => 0,
              ],
@@ -1627,9 +1533,9 @@ index 56b4fb7efd0..795cfd25140 100644
              [
                  'c0_firstname' => 'Bob',
                  'c1_suspended' => 2,
-@@ -111,6 +115,10 @@ class sum_test extends core_reportbuilder_testcase {
+@@ -113,6 +117,10 @@ class sum_test extends core_reportbuilder_testcase {
                  'c0_firstname' => 'Admin',
-                 'c1_suspended' => '0 suspended',
+                 'c1_suspended' => '0 (sum)',
              ],
 +            [
 +                'c0_firstname' => 'Anonymous',
@@ -1637,7 +1543,7 @@ index 56b4fb7efd0..795cfd25140 100644
 +            ],
              [
                  'c0_firstname' => 'Bob',
-                 'c1_suspended' => '2 suspended',
+                 'c1_suspended' => '2 (sum)',
 diff --git a/reportbuilder/tests/local/filters/user_test.php b/reportbuilder/tests/local/filters/user_test.php
 index a9cc75590bf..ba754e85aef 100644
 --- a/reportbuilder/tests/local/filters/user_test.php
@@ -1808,7 +1714,7 @@ index f76455c9702..85318c3ded4 100644
      }
  }
 diff --git a/tag/tests/taglib_test.php b/tag/tests/taglib_test.php
-index 91a4681c593..889fb8f1098 100644
+index 1cc7f127592..1113f3f6cea 100644
 --- a/tag/tests/taglib_test.php
 +++ b/tag/tests/taglib_test.php
 @@ -216,7 +216,7 @@ class taglib_test extends \advanced_testcase {
