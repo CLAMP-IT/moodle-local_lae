@@ -1,0 +1,1840 @@
+diff --git a/.github/workflows/push.yml b/.github/workflows/push.yml
+index d4189fc9249..9a36e636b76 100644
+--- a/.github/workflows/push.yml
++++ b/.github/workflows/push.yml
+@@ -3,6 +3,7 @@ name: Core
+ on:
+   push:
+     branches-ignore:
++      - '*PACKAGE*'
+       - main
+       - MOODLE_[0-9]+_STABLE
+     tags-ignore:
+diff --git a/LAE_readme.md b/LAE_readme.md
+new file mode 100644
+index 00000000000..501c76d7b4f
+--- /dev/null
++++ b/LAE_readme.md
+@@ -0,0 +1,89 @@
++# [Moodle Liberal Arts Edition v4.4.5-LAE26.0.4]
++
++Welcome to the Moodle Liberal Arts Edition. The goal of the LAE is to provide a coherent package for modules, patches, and code developed (or improved) by the Collaborative Liberal Arts Moodle Project (CLAMP).
++
++This package consists of the code that the developers and instructional technologists at CLAMP schools have deemed essential to their operation of Moodle. A number of other recommend add-ons for Moodle are available through CLAMP web site (<http://www.clamp-it.org>). These recommended add-ons,  however,  have certain caveats that you should be aware of, and it is imperative that you read their respective readme files before installing them.
++
++## Legal
++
++The LAE is offered "as is", with no warranty. The institutions that comprise CLAMP have done their best to test this code, but we offer it strictly as a convenience to our members.
++
++## Contact
++
++Questions about the LAE can be sent to Charles Fulton at fultonc@lafayette.edu or 610-330-3046. CLAMP members may participate in the development of the LAE by joining CLAMP's Slack team. Please see CLAMP's collaboration and development tools page for more information:
++
++https://www.clamp-it.org/collaboration-and-development-tools/
++
++## Contents
++
++Moodle 4.4.5+LAE26.0.4 consists of the core Moodle 4.4.5 release plus a number of CLAMP-developed features and bug fixes.
++
++The following core features are included:
++
++* Anonymous Forums
++* Per-course resource display options
++
++### Anonymous Forums
++
++A completely new version of the Anonymous Forums option in Moodle. This version introduces a new "Anonymous User" who is attached to forum posts, allowing faculty to back up and restore a forum without losing anonymity. This feature is disabled by default.
++
++### Per-course resource display options
++
++You may choose a default resource display option at the course level now instead of at the site-level.
++
++## Contributed modules
++
++CLAMP recommends the following contributed modules. If you have downloaded the "Package" version of the LAE then these modules are already available.
++
++### Filtered Course List
++
++This block allows you to list a current term and a future term's courses first, based on whatever term-based naming convention you use in your Moodle courses' shortname field (e.g. FA11, SP12). It also allows you to specify a course category instead."
++
++### OU Dates Report
++
++This course report, developed by Tim Hunt at the Open University, allows teachers to quickly edit date-aware items in course modules such as quizzes and assignments.
++
++### Quickmail
++
++A block used to quickly send emails to members of a class, replicating similar functionality found in other learning management systems. This version is forked from the Quickmail currently maintained by Louisiana State University. This functionality is now delivered by "CLAMPMail" (block_clampmail). For full details please see <http://www.clamp-it.org/blog/2014/01/20/the-state-of-quickmail/>.
++
++### Roster Report
++
++A course report which displays the user pictures for everyone enrolled in a course.
++
++### Ad-hoc database queries (customsql)
++
++This report plugin, developed by Tim Hunt at the Open University,  allows Administrators to set up arbitrary database queries to act as ad-hoc reports.
++
++## Downloading the LAE
++
++You can get the LAE in two ways:
++
++* Download the tar and zip packages from the CLAMP web site: <http://www.clamp-it.org/code/>
++* Download the current release branch from the CLAMP code repository:
++
++    git clone https://github.com/CLAMP-IT/moodle v4.4.5-LAE26.0.4
++    git checkout -b v4.4.5-LAE26.0.4
++
++By default this is the "Package" version which includes the contributed modules. If you just want the core version of the LAE checkout the v4.4.5-LAE26.0.4-base tag instead.
++
++CLAMP maintains two branches for each major version:
++
++* LAE\_404\_STABLE contains the core code only
++* LAE\_404\_PACKAGE includes the contributed modules
++
++## Installing the LAE
++
++If you are installing Moodle for the first time, you can follow the standard Moodle installation instructions (substituting the LAE Moodle package for the regular Moodle one)
++
++<http://docs.moodle.org/en/Installing_Moodle>
++
++## Upgrading to the LAE
++
++If you are upgrading an existing installation, you can follow your normal procedure for doing an "in-place" upgrade (replacing your old Moodle files with the new LAE ones, then copying over any additional modules or blocks you might have from the old install into the new one)
++
++A few notes:
++
++1. Always backup your original Moodle files and database before doing an upgrade.
++
++2. We *strongly* recommend doing a test upgrade on a development Moodle instance before upgrading your production instance.
+diff --git a/admin/tests/reportbuilder/local/filters/courserole_test.php b/admin/tests/reportbuilder/local/filters/courserole_test.php
+index 1a6bc7aa6f4..07d2b39a34f 100644
+--- a/admin/tests/reportbuilder/local/filters/courserole_test.php
++++ b/admin/tests/reportbuilder/local/filters/courserole_test.php
+@@ -39,7 +39,7 @@ class courserole_test extends advanced_testcase {
+      */
+     public static function get_sql_filter_provider(): array {
+         return [
+-            'Empty filter' => ['', '', '', ['admin', 'guest', 'user1', 'user2', 'user3', 'user4']],
++            'Empty filter' => ['', '', '', ['admin', 'anonymous_user', 'guest', 'user1', 'user2', 'user3', 'user4']],
+             'Filter by role' => ['editingteacher', '', '', ['user1', 'user3', 'user4']],
+             'Filter by role in category' => ['editingteacher', 'cat2', '', ['user1', 'user3']],
+             'Filter by role in category and course' => ['editingteacher', 'cat2', 'course2', ['user1']],
+diff --git a/admin/tool/dataprivacy/tests/expired_contexts_test.php b/admin/tool/dataprivacy/tests/expired_contexts_test.php
+index 162bf185910..2fdc4d2bdff 100644
+--- a/admin/tool/dataprivacy/tests/expired_contexts_test.php
++++ b/admin/tool/dataprivacy/tests/expired_contexts_test.php
+@@ -273,6 +273,9 @@ class expired_contexts_test extends \advanced_testcase {
+         global $DB;
+         $this->resetAfterTest();
+ 
++        // Drop the LAE anonymous user.
++        $DB->delete_records('user', ['username' => 'anonymous_user']);
++
+         $purposes = $this->setup_basics('PT1H', 'PT1H', 'PT1H');
+ 
+         $user = $this->getDataGenerator()->create_user(['lastaccess' => time() - YEARSECS]);
+diff --git a/analytics/tests/privacy/provider_test.php b/analytics/tests/privacy/provider_test.php
+index 83ca42b8948..0c2cd1148d0 100644
+--- a/analytics/tests/privacy/provider_test.php
++++ b/analytics/tests/privacy/provider_test.php
+@@ -155,6 +155,12 @@ class provider_test extends \core_privacy\tests\provider_testcase {
+         $prediction->action_executed(\core_analytics\prediction::ACTION_INCORRECTLY_FLAGGED, $this->model2->get_target());
+ 
+         $this->setAdminUser();
++
++        // Remove analytics related to the LAE anonymous user.
++        $systemcontext = \context_system::instance();
++        $anonymousid = \core_user::get_user_by_username('anonymous_user', 'id')->id;
++        $approvedlist = new approved_userlist($systemcontext, 'core_analytics', [$anonymousid]);
++        provider::delete_data_for_users($approvedlist);
+     }
+ 
+     /**
+@@ -202,6 +208,12 @@ class provider_test extends \core_privacy\tests\provider_testcase {
+     public function test_delete_context_data(): void {
+         global $DB;
+ 
++        // Drop the LAE anonymous user.
++        $DB->delete_records('user', ['username' => 'anonymous_user']);
++
++        $usercount = $DB->count_records('user');
++        $enrolcount = $DB->count_records('user_enrolments');
++
+         // We have 4 predictions for model1 and 8 predictions for model2.
+         $this->assertEquals(12, $DB->count_records('analytics_predictions'));
+         $this->assertEquals(26, $DB->count_records('analytics_indicator_calc'));
+diff --git a/auth/db/tests/db_test.php b/auth/db/tests/db_test.php
+index 64083bf1dc4..4a6111a1b18 100644
+--- a/auth/db/tests/db_test.php
++++ b/auth/db/tests/db_test.php
+@@ -219,7 +219,7 @@ class db_test extends \advanced_testcase {
+         $user3 = (object)array('name'=>'admin', 'pass'=>'heslo', 'email'=>'admin@example.com'); // Should be skipped.
+         $user3->id = $DB->insert_record('auth_db_users', $user3);
+ 
+-        $this->assertCount(2, $DB->get_records('user'));
++        $this->assertCount(3, $DB->get_records('user'));
+ 
+         $trace = new \null_progress_trace();
+ 
+@@ -232,8 +232,7 @@ class db_test extends \advanced_testcase {
+         $this->assertTrue($events[0] instanceof  \core\event\user_created);
+         $this->assertTrue($events[1] instanceof  \core\event\user_created);
+ 
+-        // Assert the two users were created.
+-        $this->assertEquals(4, $DB->count_records('user'));
++        $this->assertEquals(5, $DB->count_records('user'));
+         $u1 = $DB->get_record('user', array('username'=>$user1->name, 'auth'=>'db'));
+         $this->assertSame($user1->email, $u1->email);
+         $this->assertEmpty(profile_user_record($u1->id)->pet);
+@@ -252,13 +251,13 @@ class db_test extends \advanced_testcase {
+         $DB->update_record('auth_db_users', $user2b);
+ 
+         $auth->sync_users($trace, false);
+-        $this->assertEquals(4, $DB->count_records('user'));
++        $this->assertEquals(5, $DB->count_records('user'));
+         $u2 = $DB->get_record('user', array('username'=>$user2->name));
+         $this->assertSame($user2->email, $u2->email);
+         $this->assertSame($user2->animal, profile_user_record($u2->id)->pet);
+ 
+         $auth->sync_users($trace, true);
+-        $this->assertEquals(4, $DB->count_records('user'));
++        $this->assertEquals(5, $DB->count_records('user'));
+         $u2 = $DB->get_record('user', array('username'=>$user2->name));
+         $this->assertSame($user2->email, $u2->email);
+ 
+@@ -268,12 +267,12 @@ class db_test extends \advanced_testcase {
+         $auth->config->field_updatelocal_profile_field_pet = 'onlogin';
+ 
+         $auth->sync_users($trace, false);
+-        $this->assertEquals(4, $DB->count_records('user'));
++        $this->assertEquals(5, $DB->count_records('user'));
+         $u2 = $DB->get_record('user', array('username'=>$user2->name));
+         $this->assertSame($user2->email, $u2->email);
+ 
+         $auth->sync_users($trace, true);
+-        $this->assertEquals(4, $DB->count_records('user'));
++        $this->assertEquals(5, $DB->count_records('user'));
+         $u2 = $DB->get_record('user', array('username'=>$user2->name));
+         $this->assertSame($user2b->email, $u2->email);
+         $this->assertSame($user2b->animal, profile_user_record($u2->id)->pet);
+@@ -287,7 +286,7 @@ class db_test extends \advanced_testcase {
+         unset($user2b);
+ 
+         $auth->sync_users($trace, false);
+-        $this->assertEquals(4, $DB->count_records('user'));
++        $this->assertEquals(5, $DB->count_records('user'));
+         $this->assertEquals(0, $DB->count_records('user', array('deleted'=>1)));
+         $this->assertEquals(0, $DB->count_records('user', array('suspended'=>1)));
+ 
+@@ -295,7 +294,7 @@ class db_test extends \advanced_testcase {
+         $auth->config->removeuser = AUTH_REMOVEUSER_SUSPEND;
+ 
+         $auth->sync_users($trace, false);
+-        $this->assertEquals(4, $DB->count_records('user'));
++        $this->assertEquals(5, $DB->count_records('user'));
+         $this->assertEquals(0, $DB->count_records('user', array('deleted'=>1)));
+         $this->assertEquals(1, $DB->count_records('user', array('suspended'=>1)));
+ 
+@@ -303,7 +302,7 @@ class db_test extends \advanced_testcase {
+         $user2->id = $DB->insert_record('auth_db_users', $user2);
+ 
+         $auth->sync_users($trace, false);
+-        $this->assertEquals(4, $DB->count_records('user'));
++        $this->assertEquals(5, $DB->count_records('user'));
+         $this->assertEquals(0, $DB->count_records('user', array('deleted'=>1)));
+         $this->assertEquals(0, $DB->count_records('user', array('suspended'=>1)));
+ 
+@@ -313,7 +312,7 @@ class db_test extends \advanced_testcase {
+         $auth->config->removeuser = AUTH_REMOVEUSER_FULLDELETE;
+ 
+         $auth->sync_users($trace, false);
+-        $this->assertEquals(4, $DB->count_records('user'));
++        $this->assertEquals(5, $DB->count_records('user'));
+         $this->assertEquals(1, $DB->count_records('user', array('deleted'=>1)));
+         $this->assertEquals(0, $DB->count_records('user', array('suspended'=>1)));
+ 
+@@ -321,7 +320,7 @@ class db_test extends \advanced_testcase {
+         $user2->id = $DB->insert_record('auth_db_users', $user2);
+ 
+         $auth->sync_users($trace, false);
+-        $this->assertEquals(5, $DB->count_records('user'));
++        $this->assertEquals(6, $DB->count_records('user'));
+         $this->assertEquals(1, $DB->count_records('user', array('deleted'=>1)));
+         $this->assertEquals(0, $DB->count_records('user', array('suspended'=>1)));
+ 
+diff --git a/badges/tests/reportbuilder/datasource/users_test.php b/badges/tests/reportbuilder/datasource/users_test.php
+index 96da2707cbc..140656ab591 100644
+--- a/badges/tests/reportbuilder/datasource/users_test.php
++++ b/badges/tests/reportbuilder/datasource/users_test.php
+@@ -59,7 +59,7 @@ class users_test extends core_reportbuilder_testcase {
+         $report = $generator->create_report(['name' => 'Badges', 'source' => users::class, 'default' => 1]);
+ 
+         $content = $this->get_custom_report_content($report->get('id'));
+-        $this->assertCount(3, $content);
++        $this->assertCount(4, $content);
+ 
+         // Default columns are user, badge, description, issued time. Sorted by user, badge, issued time.
+         [$userfullname, $badgename, $badgedescription, $badgeissued] = array_values($content[0]);
+@@ -68,13 +68,13 @@ class users_test extends core_reportbuilder_testcase {
+         $this->assertEmpty($badgedescription);
+         $this->assertEmpty($badgeissued);
+ 
+-        [$userfullname, $badgename, $badgedescription, $badgeissued] = array_values($content[1]);
++        [$userfullname, $badgename, $badgedescription, $badgeissued] = array_values($content[2]);
+         $this->assertEquals(fullname($user), $userfullname);
+         $this->assertEquals($badgeone->name, $badgename);
+         $this->assertEquals($badgeone->description, $badgedescription);
+         $this->assertNotEmpty($badgeissued);
+ 
+-        [$userfullname, $badgename, $badgedescription, $badgeissued] = array_values($content[2]);
++        [$userfullname, $badgename, $badgedescription, $badgeissued] = array_values($content[3]);
+         $this->assertEquals(fullname($user), $userfullname);
+         $this->assertEquals($badgetwo->name, $badgename);
+         $this->assertEquals($badgetwo->description, $badgedescription);
+@@ -143,7 +143,7 @@ class users_test extends core_reportbuilder_testcase {
+         $generator->create_column(['reportid' => $report->get('id'), 'uniqueidentifier' => 'cohort:name']);
+ 
+         $content = $this->get_custom_report_content($report->get('id'));
+-        $this->assertCount(3, $content);
++        $this->assertCount(4, $content);
+ 
+         // Admin user, no badge issued.
+         [$fullname, $badgename, $namewithlink, $criteria, $image, $language, $version, $status, $expiry, $tag, $expires,
+@@ -168,7 +168,7 @@ class users_test extends core_reportbuilder_testcase {
+ 
+         // User issued site badge.
+         [$fullname, $badgename, $namewithlink, $criteria, $image, $language, $version, $status, $expiry, $tag, $expires,
+-            $visible, $coursename, $cohortname] = array_values($content[1]);
++            $visible, $coursename, $cohortname] = array_values($content[2]);
+         $this->assertEquals(fullname($user), $fullname);
+         $this->assertEquals($badgesite->name, $badgename);
+         $this->assertEquals($expectedbadgesitelink, $namewithlink);
+@@ -189,7 +189,7 @@ class users_test extends core_reportbuilder_testcase {
+ 
+         // User issued course badge.
+         [$fullname, $badgename, $namewithlink, $criteria, $image, $language, $version, $status, $expiry, $tag, $expires,
+-            $visible, $coursename, $cohortname] = array_values($content[2]);
++            $visible, $coursename, $cohortname] = array_values($content[3]);
+         $this->assertEquals(fullname($user), $fullname);
+         $this->assertEquals($badgecourse->name, $badgename);
+         $this->assertEquals($expectedbadgecourselink, $namewithlink);
+diff --git a/course/edit_form.php b/course/edit_form.php
+index a6e1f2edecf..3265fe2c805 100644
+--- a/course/edit_form.php
++++ b/course/edit_form.php
+@@ -7,6 +7,7 @@ defined('MOODLE_INTERNAL') || die;
+ 
+ require_once($CFG->libdir.'/formslib.php');
+ require_once($CFG->libdir.'/completionlib.php');
++require_once($CFG->libdir.'/resourcelib.php');
+ require_once($CFG->libdir . '/pdflib.php');
+ 
+ /**
+@@ -328,6 +329,13 @@ class course_edit_form extends moodleform {
+         // Files and uploads.
+         $mform->addElement('header', 'filehdr', get_string('filesanduploads'));
+ 
++        // Prepare the file display default selector.
++        $resource_config = get_config('resource');
++        $choices = resourcelib_get_displayoptions(explode(',', $resource_config->displayoptions));
++        $mform->addElement('select', 'filedisplaydefault', get_string('course:filedisplay_default', 'local_lae'), $choices);
++        $mform->addHelpButton('filedisplaydefault', 'course:filedisplay_default', 'local_lae');
++        $mform->setDefault('filedisplaydefault', !isset($course->filedisplaydefault) ? $resource_config->display : $course->filedisplaydefault);
++
+         if (!empty($course->legacyfiles) or !empty($CFG->legacyfilesinnewcourses)) {
+             if (empty($course->legacyfiles)) {
+                 //0 or missing means no legacy files ever used in this course - new course or nobody turned on legacy files yet
+diff --git a/lib/phpunit/tests/advanced_test.php b/lib/phpunit/tests/advanced_test.php
+index 586771aefb0..18a5932d7ec 100644
+--- a/lib/phpunit/tests/advanced_test.php
++++ b/lib/phpunit/tests/advanced_test.php
+@@ -167,9 +167,9 @@ class advanced_test extends \advanced_testcase {
+         $course = $this->getDataGenerator()->create_course();
+         $this->assertEquals($numcourses + 1, $DB->count_records('course'));
+ 
+-        $this->assertEquals(2, $DB->count_records('user'));
++        $this->assertEquals(3, $DB->count_records('user'));
+         $DB->delete_records('user', array('id'=>1));
+-        $this->assertEquals(1, $DB->count_records('user'));
++        $this->assertEquals(2, $DB->count_records('user'));
+ 
+         $this->resetAllData();
+ 
+@@ -183,11 +183,11 @@ class advanced_test extends \advanced_testcase {
+         $displayid = $DB->insert_record('user_preferences', array('userid'=>2, 'name'=> 'phpunittest', 'value'=>'x'));
+         $this->assertEquals($originaldisplayid, $displayid);
+ 
+-        $this->assertEquals(2, $DB->count_records('user'));
++        $this->assertEquals(3, $DB->count_records('user'));
+         $DB->delete_records('user', array('id'=>2));
+         $user = $this->getDataGenerator()->create_user();
+-        $this->assertEquals(2, $DB->count_records('user'));
+-        $this->assertGreaterThan(2, $user->id);
++        $this->assertEquals(3, $DB->count_records('user'));
++        $this->assertGreaterThan(3, $user->id);
+ 
+         $this->resetAllData();
+ 
+@@ -195,7 +195,7 @@ class advanced_test extends \advanced_testcase {
+         $course = $this->getDataGenerator()->create_course();
+         $this->assertEquals($numcourses + 1, $DB->count_records('course'));
+ 
+-        $this->assertEquals(2, $DB->count_records('user'));
++        $this->assertEquals(3, $DB->count_records('user'));
+         $DB->delete_records('user', array('id'=>2));
+ 
+         $this->resetAllData();
+@@ -204,7 +204,7 @@ class advanced_test extends \advanced_testcase {
+         $course = $this->getDataGenerator()->create_course();
+         $this->assertEquals($numcourses + 1, $DB->count_records('course'));
+ 
+-        $this->assertEquals(2, $DB->count_records('user'));
++        $this->assertEquals(3, $DB->count_records('user'));
+     }
+ 
+     public function test_change_detection(): void {
+diff --git a/lib/tests/fixtures/statslib-test01.xml b/lib/tests/fixtures/statslib-test01.xml
+index bcfc903a56a..aa0f2a27b0a 100644
+--- a/lib/tests/fixtures/statslib-test01.xml
++++ b/lib/tests/fixtures/statslib-test01.xml
+@@ -53,7 +53,7 @@
+             <value>[end]</value>
+             <value>0</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 9 -->
+@@ -62,7 +62,7 @@
+             <value>[end]</value>
+             <value>[frontpage_roleid]</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 11 -->
+diff --git a/lib/tests/fixtures/statslib-test02.xml b/lib/tests/fixtures/statslib-test02.xml
+index 1b1cd351751..df82b60132b 100644
+--- a/lib/tests/fixtures/statslib-test02.xml
++++ b/lib/tests/fixtures/statslib-test02.xml
+@@ -53,7 +53,7 @@
+             <value>[end]</value>
+             <value>0</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 9 -->
+@@ -62,7 +62,7 @@
+             <value>[end]</value>
+             <value>[frontpage_roleid]</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 11 -->
+diff --git a/lib/tests/fixtures/statslib-test03.xml b/lib/tests/fixtures/statslib-test03.xml
+index db0c2a0344e..7dfbeaed0e6 100644
+--- a/lib/tests/fixtures/statslib-test03.xml
++++ b/lib/tests/fixtures/statslib-test03.xml
+@@ -59,7 +59,7 @@
+             <value>[end]</value>
+             <value>0</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 9 -->
+@@ -68,7 +68,7 @@
+             <value>[end]</value>
+             <value>[frontpage_roleid]</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 11 -->
+diff --git a/lib/tests/fixtures/statslib-test04.xml b/lib/tests/fixtures/statslib-test04.xml
+index efe9e2ace0d..b06d675c7b8 100644
+--- a/lib/tests/fixtures/statslib-test04.xml
++++ b/lib/tests/fixtures/statslib-test04.xml
+@@ -65,7 +65,7 @@
+             <value>[end]</value>
+             <value>0</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 9 -->
+@@ -74,7 +74,7 @@
+             <value>[end]</value>
+             <value>[frontpage_roleid]</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 11 -->
+diff --git a/lib/tests/fixtures/statslib-test05.xml b/lib/tests/fixtures/statslib-test05.xml
+index b839f74f78b..5eea7fc2563 100644
+--- a/lib/tests/fixtures/statslib-test05.xml
++++ b/lib/tests/fixtures/statslib-test05.xml
+@@ -59,7 +59,7 @@
+             <value>[end]</value>
+             <value>0</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 9 -->
+@@ -68,7 +68,7 @@
+             <value>[end]</value>
+             <value>[frontpage_roleid]</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 11 -->
+diff --git a/lib/tests/fixtures/statslib-test06.xml b/lib/tests/fixtures/statslib-test06.xml
+index 04017102ee5..be0e15588aa 100644
+--- a/lib/tests/fixtures/statslib-test06.xml
++++ b/lib/tests/fixtures/statslib-test06.xml
+@@ -65,7 +65,7 @@
+             <value>[end]</value>
+             <value>0</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 9 -->
+@@ -74,7 +74,7 @@
+             <value>[end]</value>
+             <value>[frontpage_roleid]</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 11 -->
+diff --git a/lib/tests/fixtures/statslib-test07.xml b/lib/tests/fixtures/statslib-test07.xml
+index 86379b8b91d..85e70fde109 100644
+--- a/lib/tests/fixtures/statslib-test07.xml
++++ b/lib/tests/fixtures/statslib-test07.xml
+@@ -65,7 +65,7 @@
+             <value>[end]</value>
+             <value>0</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 9 -->
+@@ -74,7 +74,7 @@
+             <value>[end]</value>
+             <value>[frontpage_roleid]</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 11 -->
+diff --git a/lib/tests/fixtures/statslib-test08.xml b/lib/tests/fixtures/statslib-test08.xml
+index 62a90c91bf1..1e894a3c7ec 100644
+--- a/lib/tests/fixtures/statslib-test08.xml
++++ b/lib/tests/fixtures/statslib-test08.xml
+@@ -59,7 +59,7 @@
+             <value>[end]</value>
+             <value>0</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 9 -->
+@@ -68,7 +68,7 @@
+             <value>[end]</value>
+             <value>[frontpage_roleid]</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 11 -->
+diff --git a/lib/tests/fixtures/statslib-test09.xml b/lib/tests/fixtures/statslib-test09.xml
+index efe77b691d5..f04beb5c295 100644
+--- a/lib/tests/fixtures/statslib-test09.xml
++++ b/lib/tests/fixtures/statslib-test09.xml
+@@ -65,7 +65,7 @@
+             <value>[end]</value>
+             <value>0</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 9 -->
+@@ -74,7 +74,7 @@
+             <value>[end]</value>
+             <value>[frontpage_roleid]</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 11 -->
+diff --git a/lib/tests/fixtures/statslib-test10.xml b/lib/tests/fixtures/statslib-test10.xml
+index 83d7fcc2c1f..22106f32449 100644
+--- a/lib/tests/fixtures/statslib-test10.xml
++++ b/lib/tests/fixtures/statslib-test10.xml
+@@ -53,7 +53,7 @@
+             <value>[end]</value>
+             <value>0</value>
+             <value>enrolments</value>
+-            <value>4</value>
++            <value>5</value>
+             <value>1</value>
+         </row>
+         <!-- Query 11 -->
+diff --git a/mod/forum/amd/build/inpage_reply.min.js b/mod/forum/amd/build/inpage_reply.min.js
+index 8421bdfff55..97d1b74194f 100644
+Binary files a/mod/forum/amd/build/inpage_reply.min.js and b/mod/forum/amd/build/inpage_reply.min.js differ
+diff --git a/mod/forum/amd/build/inpage_reply.min.js.map b/mod/forum/amd/build/inpage_reply.min.js.map
+index 679a7753041..78184e982ea 100644
+Binary files a/mod/forum/amd/build/inpage_reply.min.js.map and b/mod/forum/amd/build/inpage_reply.min.js.map differ
+diff --git a/mod/forum/amd/build/posts_list.min.js b/mod/forum/amd/build/posts_list.min.js
+index 63f1f87160f..41f41882099 100644
+Binary files a/mod/forum/amd/build/posts_list.min.js and b/mod/forum/amd/build/posts_list.min.js differ
+diff --git a/mod/forum/amd/build/posts_list.min.js.map b/mod/forum/amd/build/posts_list.min.js.map
+index f33d30b38d3..d7fd3cc0353 100644
+Binary files a/mod/forum/amd/build/posts_list.min.js.map and b/mod/forum/amd/build/posts_list.min.js.map differ
+diff --git a/mod/forum/amd/build/repository.min.js b/mod/forum/amd/build/repository.min.js
+index 2f93f6d747c..27f4fddafe3 100644
+Binary files a/mod/forum/amd/build/repository.min.js and b/mod/forum/amd/build/repository.min.js differ
+diff --git a/mod/forum/amd/build/repository.min.js.map b/mod/forum/amd/build/repository.min.js.map
+index ffe8436ff4c..39993663cb4 100644
+Binary files a/mod/forum/amd/build/repository.min.js.map and b/mod/forum/amd/build/repository.min.js.map differ
+diff --git a/mod/forum/amd/src/inpage_reply.js b/mod/forum/amd/src/inpage_reply.js
+index 573201ffe1a..97cdafe61a4 100644
+--- a/mod/forum/amd/src/inpage_reply.js
++++ b/mod/forum/amd/src/inpage_reply.js
+@@ -107,13 +107,16 @@ define([
+             var isprivatereply = form.elements.privatereply != undefined ? form.elements.privatereply.checked : false;
+             var modeSelector = root.find(Selectors.post.modeSelect);
+             var mode = modeSelector.length ? parseInt(modeSelector.get(0).value) : null;
++            var isanonymousreply = form.elements.anonymousreply != undefined ? form.elements.anonymousreply.checked : false;
++            var mode = parseInt(root.find(Selectors.post.modeSelect).get(0).value);
+             var newid;
+ 
+             if (message.length) {
+                 showSubmitButtonLoadingIcon(submitButton);
+                 allButtons.prop('disabled', true);
+ 
+-                Repository.addDiscussionPost(postid, subject, message, messageformat, isprivatereply, topreferredformat)
++                Repository.addDiscussionPost(postid, subject, message, messageformat, isprivatereply,
++                    topreferredformat, isanonymousreply)
+                     .then(function(context) {
+                         var message = context.messages.reduce(function(carry, message) {
+                             if (message.type == 'success') {
+diff --git a/mod/forum/amd/src/posts_list.js b/mod/forum/amd/src/posts_list.js
+index 3024fa70ddd..d5ed30abd48 100644
+--- a/mod/forum/amd/src/posts_list.js
++++ b/mod/forum/amd/src/posts_list.js
+@@ -65,6 +65,8 @@ define([
+                 sesskey: M.cfg.sesskey,
+                 parentsubject: currentSubject.data('replySubject'),
+                 canreplyprivately: $(e.currentTarget).data('can-reply-privately'),
++                canreplyanonymously: $(e.currentTarget).data('can-reply-anonymously'),
++                mustreplyanonymously: $(e.currentTarget).data('must-reply-anonymously'),
+                 postformat: InPageReply.CONTENT_FORMATS.MOODLE,
+                 throttlingwarningmsg: throttlingwarningmsg
+             };
+diff --git a/mod/forum/amd/src/repository.js b/mod/forum/amd/src/repository.js
+index 1da63cda19b..15bbefcf961 100644
+--- a/mod/forum/amd/src/repository.js
++++ b/mod/forum/amd/src/repository.js
+@@ -42,7 +42,7 @@ define(['core/ajax'], function(Ajax) {
+         return Ajax.call([request])[0];
+     };
+ 
+-    var addDiscussionPost = function(postid, subject, message, messageformat, isprivatereply, topreferredformat) {
++    var addDiscussionPost = function(postid, subject, message, messageformat, isprivatereply, topreferredformat, isanonymousreply) {
+         var request = {
+             methodname: 'mod_forum_add_discussion_post',
+             args: {
+@@ -56,6 +56,10 @@ define(['core/ajax'], function(Ajax) {
+                 }, {
+                     name: "topreferredformat",
+                     value: topreferredformat,
++                },
++                {
++                    name: 'anonymous',
++                    value: isanonymousreply,
+                 }]
+             }
+         };
+diff --git a/mod/forum/classes/local/data_mappers/legacy/forum.php b/mod/forum/classes/local/data_mappers/legacy/forum.php
+index a55dcbff127..4d4f659477b 100644
+--- a/mod/forum/classes/local/data_mappers/legacy/forum.php
++++ b/mod/forum/classes/local/data_mappers/legacy/forum.php
+@@ -73,7 +73,8 @@ class forum {
+                 'displaywordcount' => $forum->should_display_word_count(),
+                 'lockdiscussionafter' => $forum->get_lock_discussions_after(),
+                 'duedate' => $forum->get_due_date(),
+-                'cutoffdate' => $forum->get_cutoff_date()
++                'cutoffdate' => $forum->get_cutoff_date(),
++                'anonymous' => $forum->get_anonymity()
+             ];
+         }, $forums);
+     }
+diff --git a/mod/forum/classes/local/data_mappers/legacy/post.php b/mod/forum/classes/local/data_mappers/legacy/post.php
+index 1db2ade9a80..bb88e89a96b 100644
+--- a/mod/forum/classes/local/data_mappers/legacy/post.php
++++ b/mod/forum/classes/local/data_mappers/legacy/post.php
+@@ -63,6 +63,7 @@ class post {
+                 'privatereplyto' => $post->get_private_reply_recipient_id(),
+                 'wordcount' => $post->get_wordcount(),
+                 'charcount' => $post->get_charcount(),
++                'hiddenuserid' => $post->get_hiddenuserid(),
+             ];
+         }, $posts);
+     }
+diff --git a/mod/forum/classes/local/entities/forum.php b/mod/forum/classes/local/entities/forum.php
+index 9d089298077..ef125ca439e 100644
+--- a/mod/forum/classes/local/entities/forum.php
++++ b/mod/forum/classes/local/entities/forum.php
+@@ -107,6 +107,8 @@ class forum {
+     private $duedate;
+     /** @var int $cutoffdate Timestamp after which forum posts will no longer be accepted */
+     private $cutoffdate;
++    /** @var int $anonymous The level of anonymity allowed in this forum */
++    private $anonymous;
+ 
+     /**
+      * Constructor
+@@ -144,6 +146,7 @@ class forum {
+      * @param int $lockdiscussionafter Timestamp after which discussions should be locked
+      * @param int $duedate Timestamp that represents the due date for forum posts
+      * @param int $cutoffdate Timestamp after which forum posts will no longer be accepted
++     * @param int $anonymous The level of anonymity allowed in this forum
+      */
+     public function __construct(
+         context $context,
+@@ -178,7 +181,8 @@ class forum {
+         bool $displaywordcount,
+         int $lockdiscussionafter,
+         int $duedate,
+-        int $cutoffdate
++        int $cutoffdate,
++        int $anonymous
+     ) {
+         $this->context = $context;
+         $this->coursemodule = $coursemodule;
+@@ -213,6 +217,7 @@ class forum {
+         $this->lockdiscussionafter = $lockdiscussionafter;
+         $this->duedate = $duedate;
+         $this->cutoffdate = $cutoffdate;
++        $this->anonymous = $anonymous;
+     }
+ 
+     /**
+@@ -656,6 +661,15 @@ class forum {
+         return false;
+     }
+ 
++    /**
++     * Get the level of anonymity.
++     *
++     * @return int
++     */
++    public function get_anonymity() : int {
++        return $this->anonymous;
++    }
++
+     /**
+      * Is the discussion locked? - Takes into account both discussion settings AND forum's criteria
+      *
+diff --git a/mod/forum/classes/local/entities/post.php b/mod/forum/classes/local/entities/post.php
+index 4ca4b266476..815957fbc33 100644
+--- a/mod/forum/classes/local/entities/post.php
++++ b/mod/forum/classes/local/entities/post.php
+@@ -71,6 +71,8 @@ class post {
+     private $wordcount;
+     /** @var int $charcount Number of chars in the message */
+     private $charcount;
++    /** @var int $hiddenuserid The actual user id when anonymity is active */
++    private $hiddenuserid;
+ 
+     /**
+      * Constructor.
+@@ -91,6 +93,7 @@ class post {
+      * @param bool $mailnow Should this post be mailed immediately
+      * @param bool $deleted Is the post deleted
+      * @param int $privatereplyto Which user this reply is intended for in a private reply situation
++     * @param int $hiddenuserid The actual user id when anonymity is active
+      */
+     public function __construct(
+         int $id,
+@@ -110,7 +113,8 @@ class post {
+         bool $deleted,
+         int $privatereplyto,
+         ?int $wordcount,
+-        ?int $charcount
++        ?int $charcount,
++        int $hiddenuserid
+     ) {
+         $this->id = $id;
+         $this->discussionid = $discussionid;
+@@ -130,6 +134,7 @@ class post {
+         $this->privatereplyto = $privatereplyto;
+         $this->wordcount = $wordcount;
+         $this->charcount = $charcount;
++        $this->hiddenuserid = $hiddenuserid;
+     }
+ 
+     /**
+@@ -285,6 +290,26 @@ class post {
+         return !empty($this->privatereplyto);
+     }
+ 
++    /**
++     * Is this post owned by the anonymous user?
++     *
++     * @return bool
++     */
++    public function is_anonymous() : bool {
++        global $CFG;
++
++        return ($this->hiddenuserid != 0 && $this->authorid == $CFG->anonymous_userid);
++    }
++
++    /**
++     * Get the hidden user id, if set.
++     *
++     * @return int
++     */
++    public function get_hiddenuserid() : int {
++        return $this->hiddenuserid;
++    }
++
+     /**
+      * Get the id of the user that this post was intended for.
+      *
+@@ -305,13 +330,17 @@ class post {
+     }
+ 
+     /**
+-     * Check if the given user authored this post.
++     * Check if the given user authored this post. Checks hiddenuserid if set.
+      *
+      * @param stdClass $user The user to check.
+      * @return bool
+      */
+     public function is_owned_by_user(stdClass $user): bool {
+-        return $this->get_author_id() == $user->id;
++        if ($this->get_hiddenuserid() != 0) {
++            return $this->get_hiddenuserid() == $user->id;
++        } else {
++            return $this->get_author_id() == $user->id;
++        }
+     }
+ 
+     /**
+diff --git a/mod/forum/classes/local/exporters/post.php b/mod/forum/classes/local/exporters/post.php
+index c80a7607aa7..03c12601f22 100644
+--- a/mod/forum/classes/local/exporters/post.php
++++ b/mod/forum/classes/local/exporters/post.php
+@@ -390,6 +390,8 @@ class post extends exporter {
+         $cancontrolreadstatus = $capabilitymanager->can_manually_control_post_read_status($user);
+         $canselfenrol = $capabilitymanager->can_self_enrol($user);
+         $canreplyprivately = $capabilitymanager->can_reply_privately_to_post($user, $post);
++        $canreplyanonymously = $forum->get_anonymity() === FORUM_ANONYMOUS_ALLOWED || $forum->get_anonymity() === FORUM_ANONYMOUS_ALWAYS;
++        $mustreplyanonymously = $forum->get_anonymity() === FORUM_ANONYMOUS_ALWAYS;
+ 
+         $urlfactory = $this->related['urlfactory'];
+         $viewurl = $canview ? $urlfactory->get_view_post_url_from_post($post) : null;
+@@ -469,6 +471,8 @@ class post extends exporter {
+                 'export' => $canexport,
+                 'controlreadstatus' => $cancontrolreadstatus,
+                 'canreplyprivately' => $canreplyprivately,
++                'canreplyanonymously' => $canreplyanonymously,
++                'mustreplyanonymously' => $mustreplyanonymously,
+                 'selfenrol' => $canselfenrol
+             ],
+             'urls' => [
+diff --git a/mod/forum/classes/local/factories/entity.php b/mod/forum/classes/local/factories/entity.php
+index 0f63dea2875..ae7a59f5cc6 100644
+--- a/mod/forum/classes/local/factories/entity.php
++++ b/mod/forum/classes/local/factories/entity.php
+@@ -104,7 +104,8 @@ class entity {
+             $record->displaywordcount,
+             $record->lockdiscussionafter,
+             $record->duedate,
+-            $record->cutoffdate
++            $record->cutoffdate,
++            $record->anonymous
+         );
+     }
+ 
+@@ -158,7 +159,8 @@ class entity {
+             $record->deleted,
+             $record->privatereplyto,
+             $record->wordcount,
+-            $record->charcount
++            $record->charcount,
++            $record->hiddenuserid
+         );
+     }
+ 
+diff --git a/mod/forum/classes/local/managers/capability.php b/mod/forum/classes/local/managers/capability.php
+index 1740eafe52d..77b72d77029 100644
+--- a/mod/forum/classes/local/managers/capability.php
++++ b/mod/forum/classes/local/managers/capability.php
+@@ -572,6 +572,10 @@ class capability {
+             // You cannot reply privately to a post which is, itself, a private reply.
+             return false;
+         }
++        if ($post->is_anonymous()) {
++            // You cannot make a private reply to an anonymous post.
++            return false;
++        }
+ 
+         return has_capability('mod/forum:postprivatereply', $this->get_context(), $user);
+     }
+diff --git a/mod/forum/classes/post_form.php b/mod/forum/classes/post_form.php
+index 4db30310903..d659da469c5 100644
+--- a/mod/forum/classes/post_form.php
++++ b/mod/forum/classes/post_form.php
+@@ -117,6 +117,14 @@ class mod_forum_post_form extends moodleform {
+         $mform->setType('message', PARAM_RAW);
+         $mform->addRule('message', get_string('required'), 'required', null, 'client');
+ 
++        if ($forum->anonymous == FORUM_ANONYMOUS_ALLOWED && ($post->userid != $CFG->anonymous_userid) && empty($post->id)) {
++            $mform->addElement('checkbox', 'anonymous', get_string('forum:anonymouspost', 'local_lae'));
++        } else if ($forum->anonymous == FORUM_ANONYMOUS_ALWAYS && ($post->userid != $CFG->anonymous_userid) && empty($post->id)) {
++            $mform->addElement('checkbox', 'anonymous', get_string('forum:anonymouspost', 'local_lae'), null, array('disabled' => 1));
++            $mform->setDefault('anonymous', true);
++            $mform->freeze('anonymous');
++        }
++
+         if ($inpagereply) {
+             $this->add_group_elements_if_applicable($mform);
+         } else {
+@@ -248,6 +256,9 @@ class mod_forum_post_form extends moodleform {
+ 
+         $mform->addElement('hidden', 'reply');
+         $mform->setType('reply', PARAM_INT);
++
++        $mform->addElement('hidden', 'hiddenuserid');
++        $mform->setType('hiddenuserid', PARAM_INT);
+     }
+ 
+     /**
+diff --git a/mod/forum/externallib.php b/mod/forum/externallib.php
+index 61b19525c4d..f918fb7b5c8 100644
+--- a/mod/forum/externallib.php
++++ b/mod/forum/externallib.php
+@@ -173,6 +173,7 @@ class mod_forum_external extends external_api {
+                     'numdiscussions' => new external_value(PARAM_INT, 'Number of discussions in the forum', VALUE_OPTIONAL),
+                     'cancreatediscussions' => new external_value(PARAM_BOOL, 'If the user can create discussions', VALUE_OPTIONAL),
+                     'lockdiscussionafter' => new external_value(PARAM_INT, 'After what period a discussion is locked', VALUE_OPTIONAL),
++                    'anonymous' => new external_value(PARAM_INT, 'Allow anonymity'),
+                     'istracked' => new external_value(PARAM_BOOL, 'If the user is tracking the forum', VALUE_OPTIONAL),
+                     'unreadpostscount' => new external_value(PARAM_INT, 'The number of unread posts for tracked forums',
+                         VALUE_OPTIONAL),
+@@ -812,7 +813,8 @@ class mod_forum_external extends external_api {
+             'private'             => false,
+             'inlineattachmentsid' => 0,
+             'attachmentsid' => null,
+-            'topreferredformat'   => false
++            'topreferredformat'   => false,
++            'anonymous'           => false
+         );
+         foreach ($params['options'] as $option) {
+             $name = trim($option['name']);
+@@ -836,6 +838,9 @@ class mod_forum_external extends external_api {
+                 case 'topreferredformat':
+                     $value = clean_param($option['value'], PARAM_BOOL);
+                     break;
++                case 'anonymous':
++                    $value = clean_param($option['value'], PARAM_BOOL);
++                    break;
+                 default:
+                     throw new moodle_exception('errorinvalidparam', 'webservice', '', $name);
+             }
+@@ -871,6 +876,7 @@ class mod_forum_external extends external_api {
+         $post->itemid = $options['inlineattachmentsid'];
+         $post->attachments = $options['attachmentsid'];
+         $post->isprivatereply = $options['private'];
++        $post->anonymous = $options['anonymous'];
+         $post->deleted = 0;
+         $fakemform = $post->attachments;
+         if ($postid = forum_add_new_post($post, $fakemform)) {
+diff --git a/mod/forum/lang/en/forum.php b/mod/forum/lang/en/forum.php
+index 4374f9bfa23..ad780ad60d4 100644
+--- a/mod/forum/lang/en/forum.php
++++ b/mod/forum/lang/en/forum.php
+@@ -44,6 +44,7 @@ $string['allusers'] = 'All users';
+ $string['alreadyfirstpost'] = 'This is already the first post in the discussion';
+ $string['announcementsettings'] = 'Default announcement forum settings';
+ $string['announcementsettings_help'] = 'These settings define the defaults for all announcement forums.';
++$string['anonymousreply'] = 'Reply anonymously';
+ $string['anyfile'] = 'Any file';
+ $string['areaattachment'] = 'Attachments';
+ $string['areapost'] = 'Messages';
+diff --git a/mod/forum/lib.php b/mod/forum/lib.php
+index ff9485ef4b4..8a9e251bbd5 100644
+--- a/mod/forum/lib.php
++++ b/mod/forum/lib.php
+@@ -66,6 +66,10 @@ if (!defined('FORUM_CRON_USER_CACHE')) {
+     define('FORUM_CRON_USER_CACHE', 5000);
+ }
+ 
++define('FORUM_ANONYMOUS_NEVER', 0);
++define('FORUM_ANONYMOUS_ALWAYS', 1);
++define('FORUM_ANONYMOUS_ALLOWED', 2);
++
+ /**
+  * FORUM_POSTS_ALL_USER_GROUPS - All the posts in groups where the user is enrolled.
+  */
+@@ -592,7 +596,7 @@ function forum_print_recent_activity($course, $viewfullnames, $timestart) {
+                                               f.scale, f.grade_forum, f.maxbytes, f.maxattachments, f.forcesubscribe,
+                                               f.trackingtype, f.rsstype, f.rssarticles, f.timemodified, f.warnafter, f.blockafter,
+                                               f.blockperiod, f.completiondiscussions, f.completionreplies, f.completionposts,
+-                                              f.displaywordcount, f.lockdiscussionafter, f.grade_forum_notify,
++                                              f.displaywordcount, f.lockdiscussionafter, f.grade_forum_notify, f.anonymous,
+                                               d.name AS discussionname, d.firstpost, d.userid AS discussionstarter,
+                                               d.assessed AS discussionassessed, d.timemodified, d.usermodified, d.forum, d.groupid,
+                                               d.timestart, d.timeend, d.pinned, d.timelocked,
+@@ -684,7 +688,8 @@ function forum_print_recent_activity($course, $viewfullnames, $timestart) {
+                 'completionposts' => $post->completionposts,
+                 'displaywordcount' => $post->displaywordcount,
+                 'lockdiscussionafter' => $post->lockdiscussionafter,
+-                'grade_forum_notify' => $post->grade_forum_notify
++                'grade_forum_notify' => $post->grade_forum_notify,
++                'anonymous' => $post->anonymous
+             ];
+             // Build the forum entity from the factory.
+             $forumentity = $entityfactory->get_forum_from_stdclass($forumrecord, $context, $coursemodule, $course);
+@@ -2912,6 +2917,12 @@ function forum_add_new_post($post, $mform, $unused = null) {
+         $post->mailnow    = 0;
+     }
+ 
++    if((isset($post->anonymous) && $post->anonymous) || ($forum->anonymous == FORUM_ANONYMOUS_ALWAYS)) {
++        $post = forum_scrub_userid($post);
++    } else {
++        $post->hiddenuserid = 0;
++    }
++
+     \mod_forum\local\entities\post::add_message_counts($post);
+     $post->id = $DB->insert_record("forum_posts", $post);
+     $post->message = file_save_draft_area_files($post->itemid, $context->id, 'mod_forum', 'post', $post->id,
+@@ -3085,6 +3096,10 @@ function forum_add_discussion($discussion, $mform=null, $unused=null, $userid=nu
+     $post->course        = $forum->course; // speedup
+     $post->mailnow       = $discussion->mailnow;
+ 
++    if ((isset($discussion->anonymous) && $discussion->anonymous) || ($forum->anonymous == FORUM_ANONYMOUS_ALWAYS)) {
++        $post = forum_scrub_userid($post);
++    }
++
+     \mod_forum\local\entities\post::add_message_counts($post);
+     $post->id = $DB->insert_record("forum_posts", $post);
+ 
+@@ -3101,7 +3116,7 @@ function forum_add_discussion($discussion, $mform=null, $unused=null, $userid=nu
+     $discussion->firstpost    = $post->id;
+     $discussion->timemodified = $timenow;
+     $discussion->usermodified = $post->userid;
+-    $discussion->userid       = $userid;
++    $discussion->userid       = $post->userid;
+     $discussion->assessed     = 0;
+ 
+     $post->discussion = $DB->insert_record("forum_discussions", $discussion);
+@@ -6081,6 +6096,17 @@ function forum_get_user_digest_options($user = null) {
+     return $digestoptions;
+ }
+ 
++/**
++ * Anonymizes the forum userid (if necessary)
++ */
++function forum_scrub_userid($post) {
++    global $CFG;
++
++    $post->hiddenuserid = $post->userid;
++    $post->userid = $CFG->anonymous_userid;
++    return $post;
++}
++
+ /**
+  * Determine the current context if one was not already specified.
+  *
+diff --git a/mod/forum/mod_form.php b/mod/forum/mod_form.php
+index 017d0516bab..de36d3cb847 100644
+--- a/mod/forum/mod_form.php
++++ b/mod/forum/mod_form.php
+@@ -56,6 +56,15 @@ class mod_forum_mod_form extends moodleform_mod {
+         $mform->addHelpButton('type', 'forumtype', 'forum');
+         $mform->setDefault('type', 'general');
+ 
++        if(isset($CFG->forum_enableanonymousposts) && $CFG->forum_enableanonymousposts) {
++            $options = array();
++            $options[FORUM_ANONYMOUS_NEVER] = get_string('forum:anonno', 'local_lae');
++            $options[FORUM_ANONYMOUS_ALWAYS] = get_string('forum:anonyes', 'local_lae');
++            $options[FORUM_ANONYMOUS_ALLOWED] = get_string('forum:anonoptional', 'local_lae');
++            $mform->addElement('select','anonymous',get_string('forum:allowanonymous', 'local_lae'), $options);
++            $mform->addHelpButton('anonymous', 'forum:allowanonymous', 'local_lae');
++        }
++
+         $mform->addElement('header', 'availability', get_string('availability', 'forum'));
+ 
+         $name = get_string('duedate', 'forum');
+diff --git a/mod/forum/post.php b/mod/forum/post.php
+index 309a4a77573..a2140471788 100644
+--- a/mod/forum/post.php
++++ b/mod/forum/post.php
+@@ -332,7 +332,7 @@ if (!empty($forum)) {
+             throw new \moodle_exception('maxtimehaspassed', 'forum', '', format_time($CFG->maxeditingtime));
+         }
+     }
+-    if (($post->userid <> $USER->id) and
++    if ((($post->userid <> $USER->id) && ($post->hiddenuserid <> $USER->id)) and
+         !has_capability('mod/forum:editanypost', $modcontext)) {
+         throw new \moodle_exception('cannoteditposts', 'forum');
+     }
+@@ -695,7 +695,8 @@ file_prepare_draft_area($draftitemid, $modcontext->id, 'mod_forum', 'attachment'
+ 
+ // Load data into form NOW!
+ 
+-if ($USER->id != $post->userid) {   // Not the original author, so add a message to the end.
++
++if (($USER->id != $post->userid) && ($USER->id != $post->hiddenuserid)) {   // Not the original author, so add a message to the end.
+     $data = new stdClass();
+     $data->date = userdate($post->created);
+     if ($post->messageformat == FORMAT_HTML) {
+@@ -740,6 +741,7 @@ $mformpost->set_data(
+             'itemid' => $draftideditor
+         ),
+         'discussionsubscribe' => $discussionsubscribe,
++        'anonymous' => $forum->anonymous == FORUM_ANONYMOUS_ALWAYS ? 1 : 0,
+         'mailnow' => !empty($post->mailnow),
+         'userid' => $post->userid,
+         'parent' => $post->parent,
+diff --git a/mod/forum/settings.php b/mod/forum/settings.php
+index f07883f68bd..5e745a4a103 100644
+--- a/mod/forum/settings.php
++++ b/mod/forum/settings.php
+@@ -136,6 +136,9 @@ if ($ADMIN->fulltree) {
+         $settings->hide_if('forum_rssarticles', 'forum_enablerssfeeds', 'neq', '1');
+     }
+ 
++    $settings->add(new admin_setting_configcheckbox('forum_enableanonymousposts', get_string('forum:anonymouspost', 'local_lae'),
++                       get_string('forum:configenableanonymouspost', 'local_lae'), 0));
++
+     $settings->add(new admin_setting_configcheckbox('forum_enabletimedposts', get_string('timedposts', 'forum'),
+                        get_string('configenabletimedposts', 'forum'), 1));
+ 
+@@ -151,4 +154,3 @@ if ($ADMIN->fulltree) {
+     $settings->add(new admin_setting_configselect('forum_announcementsubscription', get_string('subscriptionmode', 'forum'),
+         get_string('configsubscriptiontype', 'forum'), FORUM_FORCESUBSCRIBE, $options));
+ }
+-
+diff --git a/mod/forum/templates/forum_discussion_post.mustache b/mod/forum/templates/forum_discussion_post.mustache
+index 3bdbd7317db..9e7c5bd4c76 100644
+--- a/mod/forum/templates/forum_discussion_post.mustache
++++ b/mod/forum/templates/forum_discussion_post.mustache
+@@ -282,6 +282,8 @@
+                                                         data-post-id="{{id}}"
+                                                         data-action="collapsible-link"
+                                                         data-can-reply-privately="{{canreplyprivately}}"
++                                                        data-can-reply-anonymously="{{canreplyanonymously}}"
++                                                        data-must-reply-anonymously="{{mustreplyanonymously}}"
+                                                         title="{{#str}} reply, mod_forum {{/str}}"
+                                                         role="menuitem"
+                                                     >
+@@ -297,6 +299,8 @@
+                                                             class="btn btn-link"
+                                                             data-post-id="{{id}}"
+                                                             data-can-reply-privately="{{canreplyprivately}}"
++                                                            data-can-reply-anonymously="{{canreplyanonymously}}"
++                                                            data-must-reply-anonymously="{{mustreplyanonymously}}"
+                                                             title="{{#str}} reply, mod_forum {{/str}}"
+                                                             role="menuitem"
+                                                         >
+diff --git a/mod/forum/templates/inpage_reply.mustache b/mod/forum/templates/inpage_reply.mustache
+index 0f5199349d3..b9667b0b5a0 100644
+--- a/mod/forum/templates/inpage_reply.mustache
++++ b/mod/forum/templates/inpage_reply.mustache
+@@ -65,6 +65,16 @@
+                     <label class="form-check-label" for="private-reply-checkbox-{{uniqid}}">{{#str}} privatereply, forum {{/str}}</label>
+                 </div>
+                 {{/canreplyprivately}}
++                {{#canreplyanonymously}}
++                <div class="form-check form-check-inline">
++                    <input
++                        {{#mustreplyanonymously}}
++                        disabled="disabled", checked="checked"
++                        {{/mustreplyanonymously}}
++                        type="checkbox" class="form-check-input" id="anonymous-reply-checkbox-{{uniqid}}" title="{{#str}} anonymousreply, forum {{/str}}" name="anonymousreply"/>
++                    <label class="form-check-label" for="anonymous-reply-checkbox-{{uniqid}}">{{#str}} anonymousreply, forum {{/str}}</label>
++                </div>
++                {{/canreplyanonymously}}
+                 <button data-action="forum-advanced-reply" class="btn btn-link float-end" type="submit">
+                     {{#str}} advanced, core {{/str}}
+                 </button>
+diff --git a/mod/forum/tests/entities_discussion_summary_test.php b/mod/forum/tests/entities_discussion_summary_test.php
+index 21bbc6d64ca..5cd999cc95f 100644
+--- a/mod/forum/tests/entities_discussion_summary_test.php
++++ b/mod/forum/tests/entities_discussion_summary_test.php
+@@ -87,7 +87,8 @@ class entities_discussion_summary_test extends \advanced_testcase {
+             false,
+             false,
+             null,
+-            null
++            null,
++            0
+         );
+ 
+         $discussionsummary = new discussion_summary_entity($discussion, $firstpost, $firstauthor, $lastauthor);
+diff --git a/mod/forum/tests/entities_discussion_test.php b/mod/forum/tests/entities_discussion_test.php
+index 3bad7d2b555..3f8d902343d 100644
+--- a/mod/forum/tests/entities_discussion_test.php
++++ b/mod/forum/tests/entities_discussion_test.php
+@@ -69,7 +69,8 @@ class entities_discussion_test extends \advanced_testcase {
+             false,
+             false,
+             null,
+-            null
++            null,
++            0
+         );
+         $notfirstpost = new post_entity(
+             1,
+@@ -89,7 +90,8 @@ class entities_discussion_test extends \advanced_testcase {
+             false,
+             false,
+             null,
+-            null
++            null,
++            0
+         );
+ 
+         $this->assertEquals(1, $discussion->get_id());
+diff --git a/mod/forum/tests/entities_forum_test.php b/mod/forum/tests/entities_forum_test.php
+index b5b1669fae3..c8306958bbd 100644
+--- a/mod/forum/tests/entities_forum_test.php
++++ b/mod/forum/tests/entities_forum_test.php
+@@ -90,6 +90,8 @@ class entities_forum_test extends \advanced_testcase {
+         $lockdiscussionafter = 0;
+         $duedate = 0;
+         $cutoffdate = 0;
++        $anonymous = FORUM_ANONYMOUS_NEVER;
++
+         $sendnotification = false;
+         $forum = new forum_entity(
+             $context,
+@@ -124,7 +126,8 @@ class entities_forum_test extends \advanced_testcase {
+             $displaywordcount,
+             $lockdiscussionafter,
+             $duedate,
+-            $cutoffdate
++            $cutoffdate,
++            $anonymous
+         );
+ 
+         $this->assertEquals($context, $forum->get_context());
+diff --git a/mod/forum/tests/entities_post_read_receipt_collection_test.php b/mod/forum/tests/entities_post_read_receipt_collection_test.php
+index ec684aec6e2..7f041fcc20a 100644
+--- a/mod/forum/tests/entities_post_read_receipt_collection_test.php
++++ b/mod/forum/tests/entities_post_read_receipt_collection_test.php
+@@ -52,7 +52,8 @@ class entities_post_read_receipt_collection_test extends \advanced_testcase {
+             false,
+             false,
+             null,
+-            null
++            null,
++            0
+         );
+         $post = new post_entity(
+             1,
+@@ -72,7 +73,8 @@ class entities_post_read_receipt_collection_test extends \advanced_testcase {
+             false,
+             false,
+             null,
+-            null
++            null,
++            0
+         );
+         $collection = new collection_entity([
+             (object) [
+diff --git a/mod/forum/tests/entities_post_test.php b/mod/forum/tests/entities_post_test.php
+index 13f341b18df..6dc22486087 100644
+--- a/mod/forum/tests/entities_post_test.php
++++ b/mod/forum/tests/entities_post_test.php
+@@ -53,7 +53,8 @@ class entities_post_test extends \advanced_testcase {
+             false,
+             false,
+             null,
+-            null
++            null,
++            0
+         );
+ 
+         $this->assertEquals(4, $post->get_id());
+diff --git a/mod/forum/tests/generator/lib.php b/mod/forum/tests/generator/lib.php
+index ab66bbfd49d..b177f723235 100644
+--- a/mod/forum/tests/generator/lib.php
++++ b/mod/forum/tests/generator/lib.php
+@@ -326,6 +326,10 @@ class mod_forum_generator extends testing_module_generator {
+             $record['privatereplyto'] = 0;
+         }
+ 
++        if (!isset($record['hiddenuserid'])) {
++            $record['hiddenuserid'] = 0;
++        }
++
+         $record = (object) $record;
+         \mod_forum\local\entities\post::add_message_counts($record);
+ 
+diff --git a/mod/resource/backup/moodle1/lib.php b/mod/resource/backup/moodle1/lib.php
+index 2c9498dd2d3..d5d3b6f5a57 100644
+--- a/mod/resource/backup/moodle1/lib.php
++++ b/mod/resource/backup/moodle1/lib.php
+@@ -275,6 +275,9 @@ class moodle1_mod_resource_handler extends moodle1_mod_handler {
+                     $name = null;
+                 }
+                 break;
++            case 'fileupload':
++                $name = null;
++                break;
+             default:
+                 throw new moodle1_convert_exception('unknown_resource_successor', $type);
+         }
+diff --git a/mod/resource/lib.php b/mod/resource/lib.php
+index a81216293e0..f93d9ae2ea6 100644
+--- a/mod/resource/lib.php
++++ b/mod/resource/lib.php
+@@ -497,7 +497,10 @@ function resource_dndupload_handle($uploadinfo) {
+ 
+     // Set the display options to the site defaults.
+     $config = get_config('resource');
+-    $data->display = $config->display;
++    $data->display = $uploadinfo->course->filedisplaydefault;
++    if (is_null($data->display)) {
++        $data->display = $config->display;
++    }
+     $data->popupheight = $config->popupheight;
+     $data->popupwidth = $config->popupwidth;
+     $data->printintro = $config->printintro;
+diff --git a/mod/resource/mod_form.php b/mod/resource/mod_form.php
+index 0f1addfc00c..4ece9185b9e 100644
+--- a/mod/resource/mod_form.php
++++ b/mod/resource/mod_form.php
+@@ -31,7 +31,7 @@ require_once($CFG->libdir.'/filelib.php');
+ 
+ class mod_resource_mod_form extends moodleform_mod {
+     function definition() {
+-        global $CFG, $DB;
++        global $CFG, $DB, $COURSE;
+         $mform =& $this->_form;
+ 
+         $config = get_config('resource');
+@@ -92,6 +92,7 @@ class mod_resource_mod_form extends moodleform_mod {
+         } else {
+             $mform->addElement('select', 'display', get_string('displayselect', 'resource'), $options);
+             $mform->setDefault('display', $config->display);
++            $mform->setDefault('display', $COURSE->filedisplaydefault);
+             $mform->addHelpButton('display', 'displayselect', 'resource');
+         }
+ 
+diff --git a/reportbuilder/tests/external/custom_report_data_exporter_test.php b/reportbuilder/tests/external/custom_report_data_exporter_test.php
+index 5e2d9476177..40fabfb4e78 100644
+--- a/reportbuilder/tests/external/custom_report_data_exporter_test.php
++++ b/reportbuilder/tests/external/custom_report_data_exporter_test.php
+@@ -58,19 +58,22 @@ class custom_report_data_exporter_test extends advanced_testcase {
+ 
+         $reportinstance = manager::get_report_from_persistent($report);
+ 
+-        $exporter = new custom_report_data_exporter(null, ['report' => $reportinstance, 'page' => 0, 'perpage' => 2]);
++        $exporter = new custom_report_data_exporter(null, ['report' => $reportinstance, 'page' => 0, 'perpage' => 3]);
+         $export = $exporter->export($PAGE->get_renderer('core_reportbuilder'));
+ 
+-        // There are three users (admin plus the two previouly created), but we're paging the first two only.
++        // There are four users (admin, anonymous, plus the two previouly created), but we're paging the first three only.
+         $this->assertEquals(['Lovely user', 'Email address'], $export->headers);
+         $this->assertEquals([
+             [
+                 'columns' => ['Admin User', 'admin@example.com'],
+             ],
++            [
++                'columns' => ['Anonymous User', 'Somebody@example.com'],
++            ],
+             [
+                 'columns' => ['Charlie Carrot', 'u2@example.com'],
+             ],
+         ], $export->rows);
+-        $this->assertEquals(3, $export->totalrowcount);
++        $this->assertEquals(4, $export->totalrowcount);
+     }
+ }
+diff --git a/reportbuilder/tests/external/reports/retrieve_test.php b/reportbuilder/tests/external/reports/retrieve_test.php
+index 44e89bd188f..6d829c1b49f 100644
+--- a/reportbuilder/tests/external/reports/retrieve_test.php
++++ b/reportbuilder/tests/external/reports/retrieve_test.php
+@@ -57,8 +57,8 @@ final class retrieve_test extends externallib_advanced_testcase {
+         $generator->create_column(['reportid' => $report->get('id'), 'uniqueidentifier' => 'user:fullname', 'sortenabled' => 1]);
+         $generator->create_column(['reportid' => $report->get('id'), 'uniqueidentifier' => 'user:email']);
+ 
+-        // There are three users (admin plus the two previouly created), but we're paging the first two only.
+-        $result = retrieve::execute($report->get('id'), 0, 2);
++        // There are four users (admin, anonymous plus the two previouly created), but we're paging the first three only.
++        $result = retrieve::execute($report->get('id'), 0, 3);
+         $result = external_api::clean_returnvalue(retrieve::execute_returns(), $result);
+ 
+         // All data is generated by exporters, just assert relevant sample of each.
+@@ -72,15 +72,18 @@ final class retrieve_test extends externallib_advanced_testcase {
+             [
+                 'columns' => ['Admin User', 'admin@example.com'],
+             ],
++            [
++                'columns' => ['Anonymous User', 'Somebody@example.com'],
++            ],
+             [
+                 'columns' => ['Charlie Carrot', 'u2@example.com'],
+             ],
+         ], $result['data']['rows']);
+-        $this->assertEquals(3, $result['data']['totalrowcount']);
++        $this->assertEquals(4, $result['data']['totalrowcount']);
+         $this->assertEmpty($result['warnings']);
+ 
+         // Retrieve the second set of pages results.
+-        $result = retrieve::execute($report->get('id'), 1, 2);
++        $result = retrieve::execute($report->get('id'), 1, 3);
+         $result = external_api::clean_returnvalue(retrieve::execute_returns(), $result);
+ 
+         // All data is generated by exporters, just assert relevant sample of each.
+@@ -95,7 +98,7 @@ final class retrieve_test extends externallib_advanced_testcase {
+                 'columns' => ['Zoe Zebra', 'u1@example.com'],
+             ],
+         ], $result['data']['rows']);
+-        $this->assertEquals(3, $result['data']['totalrowcount']);
++        $this->assertEquals(4, $result['data']['totalrowcount']);
+         $this->assertEmpty($result['warnings']);
+     }
+ 
+diff --git a/reportbuilder/tests/local/aggregation/avg_test.php b/reportbuilder/tests/local/aggregation/avg_test.php
+index b03d254b950..58df2d77dfe 100644
+--- a/reportbuilder/tests/local/aggregation/avg_test.php
++++ b/reportbuilder/tests/local/aggregation/avg_test.php
+@@ -68,6 +68,7 @@ class avg_test extends core_reportbuilder_testcase {
+         $this->assertEquals([
+             ['Bob', '0.5'],
+             ['Admin', '0.0'],
++            ['Anonymous', '0.0'],
+         ], array_map('array_values', $content));
+     }
+ 
+@@ -108,6 +109,10 @@ class avg_test extends core_reportbuilder_testcase {
+                 'c0_firstname' => 'Admin',
+                 'c1_suspended' => '0.0 (avg)',
+             ],
++            [
++                'c0_firstname' => 'Anonymous',
++                'c1_suspended' => '0.0 (avg)',
++            ],
+             [
+                 'c0_firstname' => 'Bob',
+                 'c1_suspended' => '0.5 (avg)',
+diff --git a/reportbuilder/tests/local/aggregation/count_test.php b/reportbuilder/tests/local/aggregation/count_test.php
+index 70f82ce3388..8604e23490c 100644
+--- a/reportbuilder/tests/local/aggregation/count_test.php
++++ b/reportbuilder/tests/local/aggregation/count_test.php
+@@ -67,6 +67,7 @@ class count_test extends core_reportbuilder_testcase {
+         $this->assertEquals([
+             ['Bob', 3],
+             ['Admin', 1],
++            ['Anonymous', 1],
+         ], array_map('array_values', $content));
+     }
+ }
+diff --git a/reportbuilder/tests/local/aggregation/countdistinct_test.php b/reportbuilder/tests/local/aggregation/countdistinct_test.php
+index e8a09081978..4751395ab22 100644
+--- a/reportbuilder/tests/local/aggregation/countdistinct_test.php
++++ b/reportbuilder/tests/local/aggregation/countdistinct_test.php
+@@ -67,6 +67,7 @@ class countdistinct_test extends core_reportbuilder_testcase {
+         $this->assertEquals([
+             ['Bob', 2],
+             ['Admin', 1],
++            ['Anonymous', 1],
+         ], array_map('array_values', $content));
+     }
+ 
+@@ -93,8 +94,8 @@ class countdistinct_test extends core_reportbuilder_testcase {
+         $content = $this->get_custom_report_content($report->get('id'));
+         $this->assertCount(1, $content);
+ 
+-        // There are two distinct fullnames ("Admin User" & "Admin Test").
++        // There are three distinct fullnames ("Admin User", "Admin Test", & "Anonymous User").
+         $countdistinct = reset($content[0]);
+-        $this->assertEquals(2, $countdistinct);
++        $this->assertEquals(3, $countdistinct);
+     }
+ }
+diff --git a/reportbuilder/tests/local/aggregation/groupconcat_test.php b/reportbuilder/tests/local/aggregation/groupconcat_test.php
+index 0d0dd50ca06..adb302040ff 100644
+--- a/reportbuilder/tests/local/aggregation/groupconcat_test.php
++++ b/reportbuilder/tests/local/aggregation/groupconcat_test.php
+@@ -72,6 +72,7 @@ class groupconcat_test extends core_reportbuilder_testcase {
+         $this->assertEquals([
+             ['Bob', 'Apple, Banana, Banana'],
+             ['Admin', 'User'],
++            ['Anonymous', 'User'],
+         ], array_map('array_values', $content));
+     }
+ 
+@@ -143,6 +144,10 @@ class groupconcat_test extends core_reportbuilder_testcase {
+                 'c0_firstname' => 'Admin',
+                 'c1_confirmed' => 'Yes (groupconcat)',
+             ],
++            [
++                'c0_firstname' => 'Anonymous',
++                'c1_confirmed' => 'No (groupconcat)',
++            ],
+             [
+                 'c0_firstname' => 'Bob',
+                 'c1_confirmed' => 'No (groupconcat), Yes (groupconcat), Yes (groupconcat)',
+diff --git a/reportbuilder/tests/local/aggregation/groupconcatdistinct_test.php b/reportbuilder/tests/local/aggregation/groupconcatdistinct_test.php
+index d1245aac9a4..1b955f7bac9 100644
+--- a/reportbuilder/tests/local/aggregation/groupconcatdistinct_test.php
++++ b/reportbuilder/tests/local/aggregation/groupconcatdistinct_test.php
+@@ -83,6 +83,7 @@ class groupconcatdistinct_test extends core_reportbuilder_testcase {
+         $this->assertEquals([
+             ['Bob', 'Apple, Banana'],
+             ['Admin', 'User'],
++            ['Anonymous', 'User'],
+         ], array_map('array_values', $content));
+     }
+ 
+@@ -154,6 +155,10 @@ class groupconcatdistinct_test extends core_reportbuilder_testcase {
+                 'c0_firstname' => 'Admin',
+                 'c1_confirmed' => 'Yes (groupconcatdistinct)',
+             ],
++            [
++                'c0_firstname' => 'Anonymous',
++                'c1_confirmed' => 'No (groupconcatdistinct)',
++            ],
+             [
+                 'c0_firstname' => 'Bob',
+                 'c1_confirmed' => 'No (groupconcatdistinct), Yes (groupconcatdistinct)',
+diff --git a/reportbuilder/tests/local/aggregation/max_test.php b/reportbuilder/tests/local/aggregation/max_test.php
+index 1b034c93f67..617f0b1297d 100644
+--- a/reportbuilder/tests/local/aggregation/max_test.php
++++ b/reportbuilder/tests/local/aggregation/max_test.php
+@@ -66,6 +66,7 @@ class max_test extends core_reportbuilder_testcase {
+         $this->assertEquals([
+             ['Bob', 'Yes'],
+             ['Admin', 'No'],
++            ['Anonymous', 'No'],
+         ], array_map('array_values', $content));
+     }
+ }
+diff --git a/reportbuilder/tests/local/aggregation/min_test.php b/reportbuilder/tests/local/aggregation/min_test.php
+index 6de8117e3f0..c6bb8c60b55 100644
+--- a/reportbuilder/tests/local/aggregation/min_test.php
++++ b/reportbuilder/tests/local/aggregation/min_test.php
+@@ -66,6 +66,7 @@ class min_test extends core_reportbuilder_testcase {
+         $this->assertEquals([
+             ['Bob', 'Yes'],
+             ['Admin', 'No'],
++            ['Anonymous', 'No'],
+         ], array_map('array_values', $content));
+     }
+ }
+diff --git a/reportbuilder/tests/local/aggregation/percent_test.php b/reportbuilder/tests/local/aggregation/percent_test.php
+index 82d1c8481ce..642528a9d3d 100644
+--- a/reportbuilder/tests/local/aggregation/percent_test.php
++++ b/reportbuilder/tests/local/aggregation/percent_test.php
+@@ -66,6 +66,7 @@ class percent_test extends core_reportbuilder_testcase {
+         $this->assertEquals([
+             ['Bob', '50.0%'],
+             ['Admin', '0.0%'],
++            ['Anonymous', '0.0%'],
+         ], array_map('array_values', $content));
+     }
+ }
+diff --git a/reportbuilder/tests/local/aggregation/sum_test.php b/reportbuilder/tests/local/aggregation/sum_test.php
+index ba081838211..09385ccb975 100644
+--- a/reportbuilder/tests/local/aggregation/sum_test.php
++++ b/reportbuilder/tests/local/aggregation/sum_test.php
+@@ -69,6 +69,7 @@ class sum_test extends core_reportbuilder_testcase {
+         $this->assertEquals([
+             ['Bob', 2],
+             ['Admin', 0],
++            ['Anonymous', 0],
+         ], array_map('array_values', $content));
+     }
+ 
+@@ -109,6 +110,10 @@ class sum_test extends core_reportbuilder_testcase {
+                 'c0_firstname' => 'Admin',
+                 'c1_suspended' => '0 (sum)',
+             ],
++            [
++                'c0_firstname' => 'Anonymous',
++                'c1_suspended' => '0 (sum)',
++            ],
+             [
+                 'c0_firstname' => 'Bob',
+                 'c1_suspended' => '2 (sum)',
+diff --git a/reportbuilder/tests/local/filters/user_test.php b/reportbuilder/tests/local/filters/user_test.php
+index ea041c402e9..760d4b9132e 100644
+--- a/reportbuilder/tests/local/filters/user_test.php
++++ b/reportbuilder/tests/local/filters/user_test.php
+@@ -40,7 +40,7 @@ class user_test extends advanced_testcase {
+      */
+     public static function get_sql_filter_simple(): array {
+         return [
+-            [user::USER_ANY, ['admin', 'guest', 'user01', 'user02']],
++            [user::USER_ANY, ['admin', 'anonymous_user', 'guest', 'user01', 'user02']],
+             [user::USER_CURRENT, ['user01']],
+         ];
+     }
+diff --git a/reportbuilder/tests/local/helpers/schedule_test.php b/reportbuilder/tests/local/helpers/schedule_test.php
+index 21bafb08413..c7cebefe53b 100644
+--- a/reportbuilder/tests/local/helpers/schedule_test.php
++++ b/reportbuilder/tests/local/helpers/schedule_test.php
+@@ -261,9 +261,9 @@ final class schedule_test extends advanced_testcase {
+         $report = $generator->create_report(['name' => 'My report', 'source' => users::class]);
+         $schedule = $generator->create_schedule(['reportid' => $report->get('id'), 'name' => 'My schedule']);
+ 
+-        // There is only one row in the report (the only user on the site).
++        // There are only two rows in the report (admin and anonymous users).
+         $count = schedule::get_schedule_report_count($schedule);
+-        $this->assertEquals(1, $count);
++        $this->assertEquals(2, $count);
+     }
+ 
+     /**
+diff --git a/reportbuilder/tests/local/helpers/user_profile_fields_test.php b/reportbuilder/tests/local/helpers/user_profile_fields_test.php
+index f9cff63bda1..9bd5b2f890d 100644
+--- a/reportbuilder/tests/local/helpers/user_profile_fields_test.php
++++ b/reportbuilder/tests/local/helpers/user_profile_fields_test.php
+@@ -312,6 +312,14 @@ final class user_profile_fields_test extends core_reportbuilder_testcase {
+                 '',
+                 'default',
+                 format_text('Default', options: ['overflowdiv' => true]),
++            ], [
++                'Anonymous',
++                'Yes',
++                'Not set',
++                'Cat',
++                '',
++                'default',
++                format_text('Default', options: ['overflowdiv' => true]),
+             ], [
+                 'Zebedee',
+                 'No',
+@@ -336,7 +344,7 @@ final class user_profile_fields_test extends core_reportbuilder_testcase {
+             ], 'testuser'],
+             'Filter by checkbox profile field (default)' => ['user:profilefield_checkbox', [
+                 'user:profilefield_checkbox_operator' => boolean_select::CHECKED,
+-            ], 'admin'],
++            ], 'anonymous_user', 2],
+             'Filter by datetime profile field' => ['user:profilefield_datetime', [
+                 'user:profilefield_datetime_operator' => date::DATE_RANGE,
+                 'user:profilefield_datetime_from' => 1622502000,
+@@ -352,7 +360,7 @@ final class user_profile_fields_test extends core_reportbuilder_testcase {
+             'Filter by menu profile field (default)' => ['user:profilefield_menu', [
+                 'user:profilefield_menu_operator' => select::EQUAL_TO,
+                 'user:profilefield_menu_value' => 'Cat',
+-            ], 'admin'],
++            ], 'anonymous_user', 2],
+             'Filter by menu profile field (no match)' => ['user:profilefield_menu', [
+                 'user:profilefield_menu_operator' => select::EQUAL_TO,
+                 'user:profilefield_menu_value' => 'Fish',
+@@ -372,7 +380,7 @@ final class user_profile_fields_test extends core_reportbuilder_testcase {
+             'Filter by text profile field (default)' => ['user:profilefield_text', [
+                 'user:profilefield_text_operator' => text::IS_EQUAL_TO,
+                 'user:profilefield_text_value' => 'default',
+-            ], 'admin'],
++            ], 'anonymous_user', 2],
+             'Filter by text profile field (no match)' => ['user:profilefield_text', [
+                 'user:profilefield_text_operator' => text::IS_EQUAL_TO,
+                 'user:profilefield_text_value' => 'hola',
+@@ -384,7 +392,7 @@ final class user_profile_fields_test extends core_reportbuilder_testcase {
+             'Filter by textarea profile field (default)' => ['user:profilefield_textarea', [
+                 'user:profilefield_textarea_operator' => text::IS_EQUAL_TO,
+                 'user:profilefield_textarea_value' => 'Default',
+-            ], 'admin'],
++            ], 'anonymous_user', 2],
+             'Filter by textarea profile field (no match)' => ['user:profilefield_textarea', [
+                 'user:profilefield_textarea_operator' => text::IS_EMPTY,
+                 'user:profilefield_textarea_value' => 'Adios',
+@@ -398,10 +406,11 @@ final class user_profile_fields_test extends core_reportbuilder_testcase {
+      * @param string $filtername
+      * @param array $filtervalues
+      * @param string|null $expectmatch
++     * @param int $expectmatchnumber
+      *
+      * @dataProvider custom_report_filter_provider
+      */
+-    public function test_custom_report_filter(string $filtername, array $filtervalues, ?string $expectmatch = null): void {
++    public function test_custom_report_filter(string $filtername, array $filtervalues, ?string $expectmatch = null, ?int $expectmatchnumber = 1): void {
+         $this->resetAfterTest();
+         $this->setAdminUser();
+ 
+@@ -429,7 +438,7 @@ final class user_profile_fields_test extends core_reportbuilder_testcase {
+         $content = $this->get_custom_report_content($report->get('id'), 0, $filtervalues);
+ 
+         if ($expectmatch !== null) {
+-            $this->assertCount(1, $content);
++            $this->assertCount($expectmatchnumber, $content);
+             $this->assertEquals($expectmatch, reset($content[0]));
+         } else {
+             $this->assertEmpty($content);
+diff --git a/reportbuilder/tests/manager_test.php b/reportbuilder/tests/manager_test.php
+index f2ebc6bafe6..c38f0e639d9 100644
+--- a/reportbuilder/tests/manager_test.php
++++ b/reportbuilder/tests/manager_test.php
+@@ -85,6 +85,7 @@ class manager_test extends core_reportbuilder_testcase {
+         $content = $this->get_custom_report_content($report->get('id'));
+         $this->assertEquals([
+             ['admin', ''],
++            ['anonymous_user', ''],
+             ['usertwo', 'Hello'],
+         ], array_map('array_values', $content));
+ 
+@@ -94,6 +95,7 @@ class manager_test extends core_reportbuilder_testcase {
+         $content = $this->get_custom_report_content($report->get('id'));
+         $this->assertEquals([
+             ['admin'],
++            ['anonymous_user'],
+             ['usertwo'],
+         ], array_map('array_values', $content));
+     }
+diff --git a/reportbuilder/tests/reportbuilder/audience/allusers_test.php b/reportbuilder/tests/reportbuilder/audience/allusers_test.php
+index f76455c9702..85318c3ded4 100644
+--- a/reportbuilder/tests/reportbuilder/audience/allusers_test.php
++++ b/reportbuilder/tests/reportbuilder/audience/allusers_test.php
+@@ -122,7 +122,7 @@ class allusers_test extends advanced_testcase {
+      * Test that sql generated is correct
+      */
+     public function test_get_sql(): void {
+-        global $DB;
++        global $CFG, $DB;
+         $this->resetAfterTest();
+ 
+         /** @var core_reportbuilder_generator $generator */
+@@ -146,7 +146,7 @@ class allusers_test extends advanced_testcase {
+         $query = 'SELECT u.* FROM {user} u ' . $join . ' WHERE ' . $where;
+         $records = $DB->get_records_sql($query, $params);
+ 
+-        $this->assertEqualsCanonicalizing([get_admin()->id, $user1->id, $user2->id, $user3->id],
++        $this->assertEqualsCanonicalizing([get_admin()->id, $CFG->anonymous_userid, $user1->id, $user2->id, $user3->id],
+             array_column($records, 'id'));
+     }
+ }
+diff --git a/tag/tests/taglib_test.php b/tag/tests/taglib_test.php
+index 275952ed4b4..b32493cfc81 100644
+--- a/tag/tests/taglib_test.php
++++ b/tag/tests/taglib_test.php
+@@ -173,7 +173,7 @@ class taglib_test extends \advanced_testcase {
+         $usertags = $DB->count_records('tag_instance', array('itemtype' => 'user'));
+         $usercount = $DB->count_records('user', array('deleted' => 0));
+         // Remove admin and guest from the count.
+-        $this->assertEquals($usertags, ($usercount - 2));
++        $this->assertEquals($usertags, ($usercount - 3));
+ 
+         // Test clean up where a course has been removed.
+         // Delete the course. This also needs to be this way otherwise the tags are removed by using the proper function.
+diff --git a/user/tests/reportbuilder/datasource/users_test.php b/user/tests/reportbuilder/datasource/users_test.php
+index 46bcb06f9e8..dbe01f39dc2 100644
+--- a/user/tests/reportbuilder/datasource/users_test.php
++++ b/user/tests/reportbuilder/datasource/users_test.php
+@@ -48,22 +48,22 @@ final class users_test extends core_reportbuilder_testcase {
+     public function test_datasource_default(): void {
+         $this->resetAfterTest();
+ 
+-        $user2 = $this->getDataGenerator()->create_user(['firstname' => 'Charles']);
+-        $user3 = $this->getDataGenerator()->create_user(['firstname' => 'Brian']);
++        $user3 = $this->getDataGenerator()->create_user(['firstname' => 'Charles']);
++        $user4 = $this->getDataGenerator()->create_user(['firstname' => 'Brian']);
+ 
+         /** @var core_reportbuilder_generator $generator */
+         $generator = $this->getDataGenerator()->get_plugin_generator('core_reportbuilder');
+         $report = $generator->create_report(['name' => 'Users', 'source' => users::class, 'default' => 1]);
+ 
+         $content = $this->get_custom_report_content($report->get('id'));
+-        $this->assertCount(3, $content);
++        $this->assertCount(4, $content);
+ 
+         // Default columns are fullname, username, email. Results are sorted by the fullname.
+-        [$adminrow, $userrow1, $userrow2] = array_map('array_values', $content);
++        [$adminrow, $anonrow, $userrow1, $userrow2] = array_map('array_values', $content);
+ 
+         $this->assertEquals(['Admin User', 'admin', 'admin@example.com'], $adminrow);
+-        $this->assertEquals([fullname($user3), $user3->username, $user3->email], $userrow1);
+-        $this->assertEquals([fullname($user2), $user2->username, $user2->email], $userrow2);
++        $this->assertEquals([fullname($user4), $user4->username, $user4->email], $userrow1);
++        $this->assertEquals([fullname($user3), $user3->username, $user3->email], $userrow2);
+     }
+ 
+     /**
+@@ -130,7 +130,7 @@ final class users_test extends core_reportbuilder_testcase {
+         $generator->create_column(['reportid' => $report->get('id'), 'uniqueidentifier' => 'cohort:name']);
+ 
+         $content = $this->get_custom_report_content($report->get('id'));
+-        $this->assertCount(2, $content);
++        $this->assertCount(3, $content);
+ 
+         // Admin row.
+         [
+@@ -183,7 +183,7 @@ final class users_test extends core_reportbuilder_testcase {
+             $theme,
+             $tag,
+             $cohortname,
+-        ] = array_values($content[1]);
++        ] = array_values($content[2]);
+ 
+         $this->assertStringContainsString(fullname($user), $fullnamewithlink);
+         $this->assertStringContainsString(fullname($user), $fullnamewithpicture);
+@@ -426,7 +426,7 @@ final class users_test extends core_reportbuilder_testcase {
+             ], true],
+             'Filter confirmed (no match)' => ['user:confirmed', [
+                 'user:confirmed_operator' => boolean_select::NOT_CHECKED,
+-            ], false],
++            ], true, 'anonymous_user'],
+             'Filter timecreated' => ['user:timecreated', [
+                 'user:timecreated_operator' => date::DATE_RANGE,
+                 'user:timecreated_from' => 1622502000,
+@@ -443,7 +443,7 @@ final class users_test extends core_reportbuilder_testcase {
+             'Filter timemodified (no match)' => ['user:timemodified', [
+                 'user:timemodified_operator' => date::DATE_RANGE,
+                 'user:timemodified_to' => 1622502000,
+-            ], false],
++            ], true, 'anonymous_user'],
+             'Filter lastaccess' => ['user:lastaccess', [
+                 'user:lastaccess_operator' => date::DATE_EMPTY,
+             ], true],
+@@ -491,7 +491,7 @@ final class users_test extends core_reportbuilder_testcase {
+      *
+      * @dataProvider datasource_filters_provider
+      */
+-    public function test_datasource_filters(string $filtername, array $filtervalues, bool $expectmatch): void {
++    public function test_datasource_filters(string $filtername, array $filtervalues, bool $expectmatch, string $expectmatchuser = 'zoe1'): void {
+         $this->resetAfterTest();
+ 
+         $user = $this->getDataGenerator()->create_user([
+@@ -539,7 +539,7 @@ final class users_test extends core_reportbuilder_testcase {
+ 
+             // Merge report usernames into easily traversable array.
+             $usernames = array_merge(...array_map('array_values', $content));
+-            $this->assertContains($user->username, $usernames);
++            $this->assertContains($expectmatchuser, $usernames);
+         } else {
+             $this->assertEmpty($content);
+         }
