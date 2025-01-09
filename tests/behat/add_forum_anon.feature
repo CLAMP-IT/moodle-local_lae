@@ -31,7 +31,7 @@ Feature: Add an anonymous forum
 
   @javascript
   Scenario: Set anonymous forums option to always and create one
-    Given I add a "Forum" to section "1" and I fill the form with:
+    Given I add a forum activity to course "C1" section "1" and I fill the form with:
       | Forum name       | Test forum name        |
       | Description      | Test forum description |
       | Anonymize posts? | Yes, always            |
@@ -58,7 +58,7 @@ Feature: Add an anonymous forum
 
   @javascript
   Scenario: Set anonymous forums option to optional and create one
-    Given I add a "Forum" to section "1" and I fill the form with:
+    Given I add a forum activity to course "C1" section "1" and I fill the form with:
       | Forum name       | Test forum 2 name        |
       | Description      | Test forum 2 description |
       | Anonymize posts? | Yes, let the user decide |
