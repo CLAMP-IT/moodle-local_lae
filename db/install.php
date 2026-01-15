@@ -56,12 +56,12 @@ function xmldb_local_lae_install() {
 
     // Add anonymous user.
     if (empty($CFG->anonymous_userid)) {
-        $anonuser = new stdClass;
+        $anonuser = new stdClass();
         $anonuser->username = 'anonymous_user';
 
         // The password needs strings.
         $anonuser->password = hash_internal_user_password(
-           str_shuffle($anonuser->username). (string)mt_rand()
+            str_shuffle($anonuser->username) . (string)mt_rand()
         );
         $anonuser->auth = 'nologin';
         $anonuser->firstname = get_string('auser_firstname', 'local_lae');

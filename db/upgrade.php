@@ -45,7 +45,7 @@ function xmldb_local_lae_upgrade($oldversion) {
 
     if ($oldversion < 2014010900) {
         // Add mnethostid and email address to Anonymous User.
-        $user = $DB->get_record('user', array('id' => $CFG->anonymous_userid));
+        $user = $DB->get_record('user', ['id' => $CFG->anonymous_userid]);
         if (empty($user->email)) {
             $user->email = get_string('auser_email', 'local_lae');
         }
@@ -56,7 +56,7 @@ function xmldb_local_lae_upgrade($oldversion) {
 
     if ($oldversion < 2014041600) {
         // Set context for Anonymous User.
-        $user = $DB->get_record('user', array('id' => $CFG->anonymous_userid));
+        $user = $DB->get_record('user', ['id' => $CFG->anonymous_userid]);
         context_user::instance($user->id);
         upgrade_plugin_savepoint(true, 2014041600, 'local', 'lae');
     }
